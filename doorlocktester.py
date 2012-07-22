@@ -1,9 +1,9 @@
 from zigbee import ZBController
 
-door_lock_cluster = ZBCluster()
+door_lock_cluster = ZCLCluster()
 door_lock_cluster.id = 0x0101
 
-door_lock_command = ZBCommand()
+door_lock_command = ZCLCommand()
 door_lock_command.id = 0x00
 
 class DoorLockTester(ZBController):

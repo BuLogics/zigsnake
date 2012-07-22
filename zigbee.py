@@ -1,14 +1,22 @@
 from telnetlib import Telnet
 
-class ZBCluster:
+class ZCLCluster:
     pass
 
-class ZBCommand:
+class ZCLCommand:
+    pass
+
+class ZCLAttribute:
     pass
 
 class ZBController(Telnet):
-    def __init__(self):
+    def __init__(self, xml_files = None):
         self.sequence = 0
+        if not xml_files:
+            return
+        for xml_file in xml_files:
+            # parse ZCL XML files for clusters, commands, and attributes
+            pass
 
     def open(self, hostname):
         Telnet.open(self, hostname, 4900)
