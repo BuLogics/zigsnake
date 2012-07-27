@@ -1,7 +1,10 @@
 from telnetlib import Telnet
+import xml.etree.ElementTree as xml
 
 class ZCLCluster:
-    pass
+    def __init__(self, xml_node):
+        for attr in ['name', 'define', 'code']:
+            setattr(self, attr, xml_node.find(attr).text)
 
 class ZCLCommand:
     pass
@@ -14,9 +17,12 @@ class ZBController(Telnet):
         self.sequence = 0
         if not xml_files:
             return
+        clusters = []
         for xml_file in xml_files:
-            # parse ZCL XML files for clusters, commands, and attributes
-            pass
+            tree = xml.parse(xml_file)
+            root = tree.getroot()
+            for cluster_xml in root.iter('cluster'):
+                clusters.append(ZCLCluster(cluster_xml))
 
     def open(self, hostname):
         Telnet.open(self, hostname, 4900)
