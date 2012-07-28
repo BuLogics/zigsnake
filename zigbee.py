@@ -14,6 +14,7 @@ class ZCLAttribute:
 
 class ZBController(Telnet):
     def __init__(self, xml_files = None):
+        Telnet.__init__(self)
         self.sequence = 0
         if not xml_files:
             return
@@ -80,10 +81,10 @@ class ZBController(Telnet):
     def send_zcl_command(self, destination, cluster, command, payload = None):
         if not payload:
             payload = []
-        self.write('raw 0x%04X {01 %02X %02X %02X %s}\n' %
-                (cluster.id, sequence, command.id, len(payload),
+        self.write('raw 0x%04X {01 %02X %02X %s}\n' %
+                (cluster, self.sequence, command,
                 " ".join(["%02X" % x for x in payload])))
-        self.write('send %04X 1 1' % destination)
+        self.write('send 0x%04X 1 1\n' % destination)
         self.sequence = self.sequence + 1 % 0x100
 
 class TimeoutError(StandardError):
