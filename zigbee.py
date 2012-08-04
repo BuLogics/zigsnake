@@ -5,24 +5,25 @@ class ZCLCluster:
     def __init__(self, cluster_xml):
         self.name = cluster_xml.find('name').text
         self.define = cluster_xml.find('define').text
-        self.code = int(cluster_xml.find('define').text, 0)
-        for attr_xml in cluster_xml.find('attribute'):
+        self.code = int(cluster_xml.find('code').text, 0)
+        for attr_xml in cluster_xml.findall('attribute'):
             setattr(self,
                     _attr_from_name(attr_xml.text),
                     ZCLAttribute(attr_xml))
-        for cmd_xml in cluster_xml.find('command'):
-            def cmd_func(self, *args):
+        for cmd_xml in cluster_xml.findall('command'):
+            def cmd_func(*args):
                 # need to figure out what's useful for this cmd to return
                 pass
+            cmd_func.__name__ = _attr_from_name(cmd_xml.get('name'))
             setattr(self,
-                    _attr_from_name(cmd_xml.get('name')),
+                    cmd_func.__name__,
                     cmd_func)
 
 class ZCLCommand:
     def __init__(self, cmd_xml):
         self.name = cmd_xml.get('name')
         self.code = int(cmd_xml.get('code'), 0)
-        self.args = [ZCLCommandArg(arg_xml) for arg_xml in cmd_xml.find('arg')]
+        self.args = [ZCLCommandArg(arg_xml) for arg_xml in cmd_xml.findall('arg')]
     def __call__(self, *args):
         pass
 
@@ -37,7 +38,7 @@ class ZCLAttribute:
         self.code = int(attr_xml.get('code'), 0)
         self.type = attr_xml.get('type')
 
-class ZCLCommandGenerator():
+class ZCL():
     def __init__(self, xml_files = None):
         clusters = []
         if not xml_files:
@@ -49,20 +50,6 @@ class ZCLCommandGenerator():
                 setattr(self,
                         _attr_from_name(cluster_xml.find('name').text),
                         ZCLCluster(cluster_xml))
-    @staticmethod
-    def _attr_from_name(name):
-        '''This assumes that the name is either in CamelCase or
-        words separated by spaces, and converts to all lowercase
-        with words separated by underscores.'''
-        if ' ' in name:
-            return name.replace(' ', '_').lower()
-        #no spaces, so look for uppercase letters and prepend an underscore
-        attr_name = ''
-        for i, letter in enumerate(name):
-            if letter.isupper() and i != 0:
-                attr_name += '_'
-            attr_name += letter.lower()
-        return attr_name
 
 class ZBController(Telnet):
     def __init__(self, xml_files = None):
@@ -144,3 +131,18 @@ class TimeoutError(StandardError):
 
 class UnhandledStatusError(StandardError):
     pass
+
+def _attr_from_name(name):
+    '''This assumes that the name is either in CamelCase or
+    words separated by spaces, and converts to all lowercase
+    with words separated by underscores.'''
+    if ' ' in name:
+        return name.replace(' ', '_').lower()
+    #no spaces, so look for uppercase letters and prepend an underscore
+    attr_name = ''
+    for i, letter in enumerate(name):
+        if letter.isupper() and i != 0:
+            attr_name += '_'
+        attr_name += letter.lower()
+    return attr_name
+
