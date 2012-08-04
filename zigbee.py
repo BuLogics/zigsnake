@@ -2,28 +2,72 @@ from telnetlib import Telnet
 import xml.etree.ElementTree as xml
 
 class ZCLCluster:
-    def __init__(self, xml_node):
-        for attr in ['name', 'define', 'code']:
-            setattr(self, attr, xml_node.find(attr).text)
+    def __init__(self, cluster_xml):
+        self.name = cluster_xml.find('name').text
+        self.define = cluster_xml.find('define').text
+        self.code = int(cluster_xml.find('define').text, 0)
+        for attr_xml in cluster_xml.find('attribute'):
+            setattr(self,
+                    _attr_from_name(attr_xml.text),
+                    ZCLAttribute(attr_xml))
+        for cmd_xml in cluster_xml.find('command'):
+            def cmd_func(self, *args):
+                # need to figure out what's useful for this cmd to return
+                pass
+            setattr(self,
+                    _attr_from_name(cmd_xml.get('name')),
+                    cmd_func)
 
 class ZCLCommand:
-    pass
+    def __init__(self, cmd_xml):
+        self.name = cmd_xml.get('name')
+        self.code = int(cmd_xml.get('code'), 0)
+        self.args = [ZCLCommandArg(arg_xml) for arg_xml in cmd_xml.find('arg')]
+    def __call__(self, *args):
+        pass
+
+class ZCLCommandArg:
+    def __init__(self, arg_xml):
+        self.name = arg_xml.get('name')
+        self.type = arg_xml.get('type')
 
 class ZCLAttribute:
-    pass
+    def __init__(self, attr_xml):
+        self.name = attr_xml.text
+        self.code = int(attr_xml.get('code'), 0)
+        self.type = attr_xml.get('type')
+
+class ZCLCommandGenerator():
+    def __init__(self, xml_files = None):
+        clusters = []
+        if not xml_files:
+            return
+        for xml_file in xml_files:
+            tree = xml.parse(xml_file)
+            root = tree.getroot()
+            for cluster_xml in root.iter('cluster'):
+                setattr(self,
+                        _attr_from_name(cluster_xml.find('name').text),
+                        ZCLCluster(cluster_xml))
+    @staticmethod
+    def _attr_from_name(name):
+        '''This assumes that the name is either in CamelCase or
+        words separated by spaces, and converts to all lowercase
+        with words separated by underscores.'''
+        if ' ' in name:
+            return name.replace(' ', '_').lower()
+        #no spaces, so look for uppercase letters and prepend an underscore
+        attr_name = ''
+        for i, letter in enumerate(name):
+            if letter.isupper() and i != 0:
+                attr_name += '_'
+            attr_name += letter.lower()
+        return attr_name
 
 class ZBController(Telnet):
     def __init__(self, xml_files = None):
         Telnet.__init__(self)
         self.sequence = 0
-        if not xml_files:
-            return
-        clusters = []
-        for xml_file in xml_files:
-            tree = xml.parse(xml_file)
-            root = tree.getroot()
-            for cluster_xml in root.iter('cluster'):
-                clusters.append(ZCLCluster(cluster_xml))
 
     def open(self, hostname):
         Telnet.open(self, hostname, 4900)
