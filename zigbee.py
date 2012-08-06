@@ -11,26 +11,41 @@ class ZCLCluster:
                     _attr_from_name(attr_xml.text),
                     ZCLAttribute(attr_xml))
         for cmd_xml in cluster_xml.findall('command'):
-            def cmd_func(*args):
-                # need to figure out what's useful for this cmd to return
-                pass
-            cmd_func.__name__ = _attr_from_name(cmd_xml.get('name'))
             setattr(self,
-                    cmd_func.__name__,
-                    cmd_func)
+                    _attr_from_name(cmd_xml.get('name')),
+                    ZCLCommandPrototype(self.code, cmd_xml))
 
-class ZCLCommand:
-    def __init__(self, cmd_xml):
+class ZCLCommandCall:
+    def __init__(self, cluster_id, command, arguments):
+        '''Takes a ZCL Command prototype (instance of ZCLCommand) and an
+        argument list and creates a ZCLCommandCall instance with the
+        arguments encoded into a payload (list of bytes)'''
+        self.cluster_id = cluster_id
+        self.command_id = command.code
+
+class ZCLCommandPrototype:
+    def __init__(self, cluster_id, cmd_xml):
+        # a ZCLCommandPrototype needs to know about its cluster ID so that it
+        # can generate a proper ZCLCommandCall that can be passed to actually
+        # send a message
+        self.cluster_id = cluster_id
         self.name = cmd_xml.get('name')
         self.code = int(cmd_xml.get('code'), 0)
-        self.args = [ZCLCommandArg(arg_xml) for arg_xml in cmd_xml.findall('arg')]
+        # function parameters are mistakenly called 'args' in the xml
+        self.params = [ZCLCommandParam(xml) for xml in cmd_xml.findall('arg')]
     def __call__(self, *args):
-        pass
+        #TODO: this should build an instance of ZCLCommandCall with a proper
+        # payload
+        print "Name: " + self.name
+        print "Code: " + str(self.code)
+        print "Params:"
+        for param in self.params:
+            print "    %s (%s)" % (param.name, param.type)
 
-class ZCLCommandArg:
-    def __init__(self, arg_xml):
-        self.name = arg_xml.get('name')
-        self.type = arg_xml.get('type')
+class ZCLCommandParam:
+    def __init__(self, param_xml):
+        self.name = param_xml.get('name')
+        self.type = param_xml.get('type')
 
 class ZCLAttribute:
     def __init__(self, attr_xml):
@@ -109,12 +124,10 @@ class ZBController(Telnet):
         print 'Device %s joined' % match.group(1)
         return int(match.group(1), 0)
 
-    def send_zcl_command(self, destination, cluster, command, payload = None):
-        if not payload:
-            payload = []
+    def send_zcl_command(self, destination, cmd):
         self.write('raw 0x%04X {01 %02X %02X %s}\n' %
-                (cluster, self.sequence, command,
-                " ".join(["%02X" % x for x in payload])))
+                (cmd.cluster_id, self.sequence, cmd.command_id,
+                " ".join(["%02X" % x for x in cmd.payload])))
         self.write('send 0x%04X 1 1\n' % destination)
         self.sequence = self.sequence + 1 % 0x100
 
@@ -135,7 +148,17 @@ class UnhandledStatusError(StandardError):
 def _attr_from_name(name):
     '''This assumes that the name is either in CamelCase or
     words separated by spaces, and converts to all lowercase
-    with words separated by underscores.'''
+    with words separated by underscores.
+
+    >>> _attr_from_name('This is a name with spaces')
+    'this_is_a_name_with_spaces'
+    >>> _attr_from_name('this is a name with spaces')
+    'this_is_a_name_with_spaces'
+    >>> _attr_from_name('ThisIsACamelCaseName')
+    'this_is_a_camel_case_name'
+    >>> _attr_from_name('thisIsAnotherCamelCaseName')
+    'this_is_another_camel_case_name'
+    '''
     if ' ' in name:
         return name.replace(' ', '_').lower()
     #no spaces, so look for uppercase letters and prepend an underscore
@@ -146,3 +169,7 @@ def _attr_from_name(name):
         attr_name += letter.lower()
     return attr_name
 
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
