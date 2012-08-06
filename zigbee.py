@@ -16,14 +16,20 @@ class ZCLCluster:
                     ZCLCommandPrototype(self.code, cmd_xml))
 
 class ZCLCommandCall:
-    def __init__(self, cluster_id, command, arguments):
+    def __init__(self, cluster_id, command_id, payload):
         '''Takes a ZCL Command prototype (instance of ZCLCommand) and an
         argument list and creates a ZCLCommandCall instance with the
         arguments encoded into a payload (list of bytes)'''
         self.cluster_id = cluster_id
-        self.command_id = command.code
+        self.command_id = command_id
+        # copy the list to make sure there's no interaction with the given payload
+        self.payload = list(payload)
 
 class ZCLCommandPrototype:
+    '''ZCLCommandPrototype represents the call signiture of a ZCL Command.
+    It is also callable, and when called will return a ZCLCommandCall object
+    with the cluster ID, command ID, and a payload list generated from the
+    type signature and the arguments given to the call.'''
     def __init__(self, cluster_id, cmd_xml):
         # a ZCLCommandPrototype needs to know about its cluster ID so that it
         # can generate a proper ZCLCommandCall that can be passed to actually
@@ -34,13 +40,10 @@ class ZCLCommandPrototype:
         # function parameters are mistakenly called 'args' in the xml
         self.params = [ZCLCommandParam(xml) for xml in cmd_xml.findall('arg')]
     def __call__(self, *args):
-        #TODO: this should build an instance of ZCLCommandCall with a proper
-        # payload
-        print "Name: " + self.name
-        print "Code: " + str(self.code)
-        print "Params:"
-        for param in self.params:
-            print "    %s (%s)" % (param.name, param.type)
+        payload = []
+        for type, arg in zip([x.type for x in self.params], args):
+            payload += _list_from_arg(type, arg)
+        return ZCLCommandCall(self.cluster_id, self.code, payload)
 
 class ZCLCommandParam:
     def __init__(self, param_xml):
@@ -169,6 +172,52 @@ def _attr_from_name(name):
         attr_name += letter.lower()
     return attr_name
 
+def _list_from_arg(type, value):
+    '''Takes in a type string and a value and returns the value converted
+    into a list suitable for a ZCL payload.
+    >>> _list_from_arg('INT8U', 0x30)
+    [48]
+    >>> _list_from_arg('CHAR_STRING', '6789')
+    [4, 54, 55, 56, 57]
+    >>> _list_from_arg('OCTET_STRING', [6, 7, 8, 9])
+    [4, 6, 7, 8, 9]'''
+    if type in ['ENUM8', 'INT8U']:
+        if value < 0 or value > 0xff:
+            raise ValueError
+        return [value]
+    if type == 'INT8S':
+        if value < -128 or value > 127:
+            raise ValueError
+        return [value]
+    if type in ['INT16U', 'ENUM16', 'BITMAP16']:
+        if value < 0 or value > 0xffff:
+            raise ValueError
+        return [value & 0xff, value >> 8]
+    if type == 'INT16S':
+        if value < -32768 or value > 32767:
+            raise ValueError
+        return [value & 0xff, value >> 8]
+    if type in ['INT32U', 'IEEE_ADDRESS', 'BITMAP32']:
+        if value < 0 or value > 0xffffffff:
+            raise ValueError
+        return [value & 0xff,
+                (value >> 8) & 0xff,
+                (value >> 16) & 0xff,
+                value >> 24]
+    if type == 'CHAR_STRING':
+        # expects a string as a value
+        payload = [len(value)]
+        for char in value:
+            payload.append(ord(char))
+        return payload
+    if type == 'OCTET_STRING':
+        # expects a list of bytes as a value
+        payload = [len(value)]
+        for byte in value:
+            payload += _list_from_arg('INT8U', byte)
+        return payload
+    print "WARNING: unrecognized type %s. Assuming INT8U" % type
+    return _list_from_arg('INT8U', value)
 
 if __name__ == '__main__':
     import doctest
