@@ -152,11 +152,15 @@ class ZBController(Telnet):
         self.sequence = self.sequence + 1 % 0x100
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
+    def wait_for_command(self, command):
         "Returns the payload as a list of ints"
+        # read and discard any data already queued up in the buffer
+        self.read_eager()
         _, match, _ = self.expect(['RX len [0-9]+, ep [0-9A-Z]+, clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]'
-            % (command.cluster_id,command.code)], timeout=20)
+            % (command.cluster_id,command.code)], timeout=10)
         if match is None:
-            raise TimeoutError()
+            print "TIMED OUT waiting for " + command.name
+            return []
         return [int(x, 16) for x in match.group(1).split()]
 
 class TimeoutError(StandardError):
