@@ -6,14 +6,21 @@ class ZCLCluster:
         self.name = cluster_xml.find('name').text
         self.define = cluster_xml.find('define').text
         self.code = int(cluster_xml.find('code').text, 0)
-        for attr_xml in cluster_xml.findall('attribute'):
-            setattr(self,
-                    _attr_from_name(attr_xml.text),
-                    ZCLAttribute(attr_xml))
+        self.add_commands(cluster_xml)
+        self.add_attributes(cluster_xml)
+
+    def add_commands(self, cluster_xml):
         for cmd_xml in cluster_xml.findall('command'):
             setattr(self,
                     _attr_from_name(cmd_xml.get('name')),
                     ZCLCommandPrototype(self.code, cmd_xml))
+
+    def add_attributes(self, cluster_xml):
+        for attr_xml in cluster_xml.findall('attribute'):
+            setattr(self,
+                    _attr_from_name(attr_xml.text),
+                    ZCLAttribute(attr_xml))
+
 
 class ZCLCommandCall:
     def __init__(self, cluster_id, command_id, payload):
@@ -40,6 +47,11 @@ class ZCLCommandPrototype:
         # function parameters are mistakenly called 'args' in the xml
         self.params = [ZCLCommandParam(xml) for xml in cmd_xml.findall('arg')]
     def __call__(self, *args):
+        if len(args) != len(self.params):
+            raise TypeError("%s() takes exactly %d arguments (%d given)\n" %
+                    (_attr_from_name(self.name), len(self.params), len(args)) +
+                    "\n".join(["\t\t%s (%s)" % (param.name, param.type) for
+                        param in self.params]))
         payload = []
         for type, arg in zip([x.type for x in self.params], args):
             payload += _list_from_arg(type, arg)
@@ -68,6 +80,13 @@ class ZCL():
                 setattr(self,
                         _attr_from_name(cluster_xml.find('name').text),
                         ZCLCluster(cluster_xml))
+            for extension_xml in root.iter('clusterExtension'):
+                for cluster in (getattr(self, match) for match in dir(self)):
+                    if cluster.__class__ == ZCLCluster \
+                            and cluster.code == int(extension_xml.get('code'), 0):
+                        print "adding data to cluster"
+                        cluster.add_commands(extension_xml)
+                        cluster.add_attributes(extension_xml)
 
 class ZBController(Telnet):
     def __init__(self, xml_files = None):
