@@ -21,7 +21,6 @@ class ZCLCluster:
                     _attr_from_name(attr_xml.text),
                     ZCLAttribute(attr_xml))
 
-
 class ZCLCommandCall:
     def __init__(self, cluster_id, command_id, payload):
         '''Takes a ZCL Command prototype (instance of ZCLCommand) and an
@@ -84,7 +83,6 @@ class ZCL():
                 for cluster in (getattr(self, match) for match in dir(self)):
                     if cluster.__class__ == ZCLCluster \
                             and cluster.code == int(extension_xml.get('code'), 0):
-                        print "adding data to cluster"
                         cluster.add_commands(extension_xml)
                         cluster.add_attributes(extension_xml)
 
@@ -154,9 +152,9 @@ class ZBController(Telnet):
         self.sequence = self.sequence + 1 % 0x100
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
-    def wait_for_command(self, cluster, command):
         "Returns the payload as a list of ints"
-        _, match, _ = self.expect(['RX len [0-9]+, ep [0-9A-Z]+, clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]' % (cluster,command)], timeout=20)
+        _, match, _ = self.expect(['RX len [0-9]+, ep [0-9A-Z]+, clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]'
+            % (command.cluster_id,command.code)], timeout=20)
         if match is None:
             raise TimeoutError()
         return [int(x, 16) for x in match.group(1).split()]
