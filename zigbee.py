@@ -22,20 +22,18 @@ class ZCLCluster:
                     ZCLAttribute(attr_xml))
 
 class ZCLCommandCall:
-    def __init__(self, cluster_id, command_id, payload):
-        '''Takes a ZCL Command prototype (instance of ZCLCommand) and an
-        argument list and creates a ZCLCommandCall instance with the
-        arguments encoded into a payload (list of bytes)'''
+    def __init__(self, cluster_id, command_id, arglist):
         self.cluster_id = cluster_id
         self.command_id = command_id
         # copy the list to make sure there's no interaction with the given payload
-        self.payload = list(payload)
+        # note that we're not going as far as copying all the arguments.
+        # maybe we should?
+        self.args = list(arglist)
 
 class ZCLCommandPrototype:
     '''ZCLCommandPrototype represents the call signiture of a ZCL Command.
     It is also callable, and when called will return a ZCLCommandCall object
-    with the cluster ID, command ID, and a payload list generated from the
-    type signature and the arguments given to the call.'''
+    with the cluster ID, command ID, a list of the types and values'''
     def __init__(self, cluster_id, cmd_xml):
         # a ZCLCommandPrototype needs to know about its cluster ID so that it
         # can generate a proper ZCLCommandCall that can be passed to actually
@@ -51,15 +49,19 @@ class ZCLCommandPrototype:
                     (_attr_from_name(self.name), len(self.params), len(args)) +
                     "\n".join(["\t\t%s (%s)" % (param.name, param.type) for
                         param in self.params]))
-        payload = []
-        for type, arg in zip([x.type for x in self.params], args):
-            payload += _list_from_arg(type, arg)
-        return ZCLCommandCall(self.cluster_id, self.code, payload)
+        arglist = [ZCLCommandArg(param.type, val) for param, val
+                in zip(self.params, args)]
+        return ZCLCommandCall(self.cluster_id, self.code, arglist)
 
 class ZCLCommandParam:
     def __init__(self, param_xml):
         self.name = param_xml.get('name')
         self.type = param_xml.get('type')
+
+class ZCLCommandArg:
+    def __init__(self, type, value):
+        self.type = type
+        self.value = value
 
 class ZCLAttribute:
     def __init__(self, attr_xml):
@@ -86,17 +88,17 @@ class ZCL():
                         cluster.add_commands(extension_xml)
                         cluster.add_attributes(extension_xml)
 
-class ZBController(Telnet):
+class ZBController():
     def __init__(self, xml_files = None):
-        Telnet.__init__(self)
+        self.conn = Telnet()
         self.sequence = 0
 
     def open(self, hostname):
-        Telnet.open(self, hostname, 4900)
+        Telnet.open(self.conn, hostname, 4900)
 
     def _network_command(self, command, args, status_prefix):
-        self.write('network %s %s\n' % (command, args))
-        _, match, _ = self.expect(['%s (0x[0-9A-F]{2})' % status_prefix], timeout=2)
+        self.conn.write('network %s %s\n' % (command, args))
+        _, match, _ = self.conn.expect(['%s (0x[0-9A-F]{2})' % status_prefix], timeout=2)
         if match is None:
             raise TimeoutError()
         return int(match.group(1), 0)
@@ -115,7 +117,7 @@ class ZBController(Telnet):
         if status == 0x70:
             print "Already Out of Network"
         elif status == 0x00:
-            out = self.read_until('EMBER_NETWORK_DOWN', timeout=2)
+            out = self.conn.read_until('EMBER_NETWORK_DOWN', timeout=2)
             if out.endswith('EMBER_NETWORK_DOWN'):
                 print "Successfully left network"
             else:
@@ -138,25 +140,28 @@ class ZBController(Telnet):
             print "Error disabling pjoin: 0x%x" % status
 
     def wait_for_join(self):
-        _, match, _ = self.expect(['Device Announce: (0x[0-9A-F]{4})'])
+        _, match, _ = self.conn.expect(['Device Announce: (0x[0-9A-F]{4})'])
         if match is None:
             raise TimeoutError()
         print 'Device %s joined' % match.group(1)
         return int(match.group(1), 0)
 
     def send_zcl_command(self, destination, cmd):
-        self.write('raw 0x%04X {01 %02X %02X %s}\n' %
+        payload = []
+        for arg in cmd.args:
+            payload += _list_from_arg(arg.type, arg.value)
+        self.conn.write('raw 0x%04X {01 %02X %02X %s}\n' %
                 (cmd.cluster_id, self.sequence, cmd.command_id,
-                " ".join(["%02X" % x for x in cmd.payload])))
-        self.write('send 0x%04X 1 1\n' % destination)
+                " ".join(["%02X" % x for x in payload])))
+        self.conn.write('send 0x%04X 1 1\n' % destination)
         self.sequence = self.sequence + 1 % 0x100
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
     def wait_for_command(self, command):
         "Returns the payload as a list of ints"
         # read and discard any data already queued up in the buffer
-        self.read_eager()
-        _, match, _ = self.expect(['RX len [0-9]+, ep [0-9A-Z]+, clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]'
+        self.conn.read_eager()
+        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]'
             % (command.cluster_id,command.code)], timeout=10)
         if match is None:
             print "TIMED OUT waiting for " + command.name
