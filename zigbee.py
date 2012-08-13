@@ -261,16 +261,17 @@ def _validate_payload(arglist, payload):
     against the expected values
 
     >>> arglist = [ZCLCommandArg('arg1', 'INT8U', 10),
-    ...        ZCLCommandArg('arg2', 'INT16U', 32)]
-    >>> _validate_payload(arglist, [0x0A, 0x20, 0x00])
+    ...        ZCLCommandArg('arg2', 'INT16U', 32),
+    ...        ZCLCommandArg('arg3', 'INT8U', None)]
+    >>> _validate_payload(arglist, [0x0A, 0x20, 0x00, 0x30])
     True
-    >>> _validate_payload(arglist, [0x0B, 0x20, 0x00])
+    >>> _validate_payload(arglist, [0x0B, 0x20, 0x00, 0x42])
     Wrong value for arg1: Expected 10, got 11
     False
     '''
     for arg in arglist:
         value = _pop_argument(arg.type, payload)
-        if value != arg.value:
+        if arg.value is not None and value != arg.value:
             print 'Wrong value for %s: Expected %s, got %s' % (arg.name,
                     str(arg.value), str(value))
             return False
