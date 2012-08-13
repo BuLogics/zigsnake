@@ -22,26 +22,29 @@ class ZCLCluster:
                     ZCLAttribute(attr_xml))
 
 class ZCLCommandCall:
-    def __init__(self, cluster_id, command_id, arglist):
-        self.cluster_id = cluster_id
-        self.command_id = command_id
+    def __init__(self, cluster_code, code, arglist):
+        self.cluster_code = cluster_code
+        self.code = code
         # copy the list to make sure there's no interaction with the given payload
         # note that we're not going as far as copying all the arguments.
         # maybe we should?
         self.args = list(arglist)
 
 class ZCLCommandPrototype:
-    '''ZCLCommandPrototype represents the call signiture of a ZCL Command.
+    '''
+    ZCLCommandPrototype represents the call signiture of a ZCL Command.
     It is also callable, and when called will return a ZCLCommandCall object
-    with the cluster ID, command ID, a list of the types and values'''
-    def __init__(self, cluster_id, cmd_xml):
+    with the cluster ID, command ID, a list of the types and values
+    '''
+    def __init__(self, cluster_code, cmd_xml):
         # a ZCLCommandPrototype needs to know about its cluster ID so that it
         # can generate a proper ZCLCommandCall that can be passed to actually
         # send a message
-        self.cluster_id = cluster_id
+        self.cluster_code = cluster_code
         self.name = cmd_xml.get('name')
         self.code = int(cmd_xml.get('code'), 0)
-        # function parameters are mistakenly called 'args' in the xml
+        # <pedantic>function parameters are mistakenly called
+        # 'args' in the xml </pedantic>
         self.params = [ZCLCommandParam(xml) for xml in cmd_xml.findall('arg')]
     def __call__(self, *args):
         if len(args) != len(self.params):
@@ -49,9 +52,9 @@ class ZCLCommandPrototype:
                     (_attr_from_name(self.name), len(self.params), len(args)) +
                     "\n".join(["\t\t%s (%s)" % (param.name, param.type) for
                         param in self.params]))
-        arglist = [ZCLCommandArg(param.type, val) for param, val
+        arglist = [ZCLCommandArg(param.name, param.type, val) for param, val
                 in zip(self.params, args)]
-        return ZCLCommandCall(self.cluster_id, self.code, arglist)
+        return ZCLCommandCall(self.cluster_code, self.code, arglist)
 
 class ZCLCommandParam:
     def __init__(self, param_xml):
@@ -59,7 +62,8 @@ class ZCLCommandParam:
         self.type = param_xml.get('type')
 
 class ZCLCommandArg:
-    def __init__(self, type, value):
+    def __init__(self, name, type, value):
+        self.name = name
         self.type = type
         self.value = value
 
@@ -151,22 +155,29 @@ class ZBController():
         for arg in cmd.args:
             payload += _list_from_arg(arg.type, arg.value)
         self.conn.write('raw 0x%04X {01 %02X %02X %s}\n' %
-                (cmd.cluster_id, self.sequence, cmd.command_id,
+                (cmd.cluster_code, self.sequence, cmd.code,
                 " ".join(["%02X" % x for x in payload])))
         self.conn.write('send 0x%04X 1 1\n' % destination)
         self.sequence = self.sequence + 1 % 0x100
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
-    def wait_for_command(self, command):
-        "Returns the payload as a list of ints"
+    def wait_for_command(self, command, timeout=10):
+        '''
+        Waits for an incomming message and validates it against the given
+        cluster ID, command ID, and arguments. Any arguments given as None
+        are ignored. Returns True for success or False for failure.
+        '''
         # read and discard any data already queued up in the buffer
         self.conn.read_eager()
-        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]'
-            % (command.cluster_id,command.code)], timeout=10)
+        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, \
+                clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]'
+            % (command.cluster_code, command.code)], timeout=timeout)
         if match is None:
             print "TIMED OUT waiting for " + command.name
-            return []
-        return [int(x, 16) for x in match.group(1).split()]
+            return False
+        else:
+            payload = [int(x, 16) for x in match.group(1).split()]
+            return _validate_payload(command.arglist, payload)
 
 class TimeoutError(StandardError):
     pass
@@ -175,7 +186,8 @@ class UnhandledStatusError(StandardError):
     pass
 
 def _attr_from_name(name):
-    '''This assumes that the name is either in CamelCase or
+    '''
+    This assumes that the name is either in CamelCase or
     words separated by spaces, and converts to all lowercase
     with words separated by underscores.
 
@@ -199,14 +211,16 @@ def _attr_from_name(name):
     return attr_name
 
 def _list_from_arg(type, value):
-    '''Takes in a type string and a value and returns the value converted
+    '''
+    Takes in a type string and a value and returns the value converted
     into a list suitable for a ZCL payload.
     >>> _list_from_arg('INT8U', 0x30)
     [48]
     >>> _list_from_arg('CHAR_STRING', '6789')
     [4, 54, 55, 56, 57]
     >>> _list_from_arg('OCTET_STRING', [6, 7, 8, 9])
-    [4, 6, 7, 8, 9]'''
+    [4, 6, 7, 8, 9]
+    '''
     if type in ['ENUM8', 'INT8U']:
         if value < 0 or value > 0xff:
             raise ValueError
@@ -217,10 +231,6 @@ def _list_from_arg(type, value):
         return [value]
     if type in ['INT16U', 'ENUM16', 'BITMAP16']:
         if value < 0 or value > 0xffff:
-            raise ValueError
-        return [value & 0xff, value >> 8]
-    if type == 'INT16S':
-        if value < -32768 or value > 32767:
             raise ValueError
         return [value & 0xff, value >> 8]
     if type in ['INT32U', 'IEEE_ADDRESS', 'BITMAP32']:
@@ -244,6 +254,76 @@ def _list_from_arg(type, value):
         return payload
     print "WARNING: unrecognized type %s. Assuming INT8U" % type
     return _list_from_arg('INT8U', value)
+
+def _validate_payload(arglist, payload):
+    '''
+    Takes a list of ZCLCommandArgs and compares a received payload
+    against the expected values
+
+    >>> arglist = [ZCLCommandArg('arg1', 'INT8U', 10),
+    ...        ZCLCommandArg('arg2', 'INT16U', 32)]
+    >>> _validate_payload(arglist, [0x0A, 0x20, 0x00])
+    True
+    >>> _validate_payload(arglist, [0x0B, 0x20, 0x00])
+    Wrong value for arg1: Expected 10, got 11
+    False
+    '''
+    for arg in arglist:
+        value = _pop_argument(arg.type, payload)
+        if value != arg.value:
+            print 'Wrong value for %s: Expected %s, got %s' % (arg.name,
+                    str(arg.value), str(value))
+            return False
+    return True
+
+def _pop_argument(type, payload):
+    '''
+    Takes a type string and a paylaod (list of 1-byte values) and
+    pops off the correct number of bytes from the front of the payload,
+    formatting the result and returning it.
+
+    >>> test_list = [1, 0x92, 0x10, 4, 3, 2, 1, 3, 0x32, 0x33, 0x34,
+    ...        3, 42, 43, 44]
+    >>> _pop_argument('INT8U', test_list)
+    1
+    >>> _pop_argument('INT16U', test_list)
+    4242
+    >>> _pop_argument('INT32U', test_list)
+    16909060
+    >>> _pop_argument('CHAR_STRING', test_list)
+    '234'
+    >>> _pop_argument('OCTET_STRING', test_list)
+    [42, 43, 44]
+    '''
+    if type in ['ENUM8', 'INT8U', 'INT8S']:
+        return payload.pop(0)
+    if type in ['INT16U', 'ENUM16', 'BITMAP16']:
+        lsb = payload.pop(0)
+        msb = payload.pop(0)
+        return (msb << 8) | lsb
+    if type in ['INT32U', 'IEEE_ADDRESS', 'BITMAP32']:
+        byte0 = payload.pop(0)
+        byte1 = payload.pop(0)
+        byte2 = payload.pop(0)
+        byte3 = payload.pop(0)
+        return (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0
+    if type == 'CHAR_STRING':
+        string = ''
+        string_len = payload.pop(0)
+        while(string_len):
+            string += chr(payload.pop(0))
+            string_len -= 1
+        return string
+    if type == 'OCTET_STRING':
+        string = []
+        string_len = payload.pop(0)
+        while(string_len):
+            string.append(payload.pop(0))
+            string_len -= 1
+        return string
+    print "WARNING: unrecognized type %s. Assuming INT8U" % type
+    return _list_from_arg('INT8U', value)
+
 
 if __name__ == '__main__':
     import doctest

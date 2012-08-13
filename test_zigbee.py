@@ -14,7 +14,6 @@ class TelnetMock():
     def read_eager(self):
         return []
 
-
 z = zigbee.ZCL(['ha.xml', 'ha12.xml'])
 conn = zigbee.ZBController()
 conn.conn = TelnetMock()
