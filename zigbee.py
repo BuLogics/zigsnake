@@ -22,9 +22,10 @@ class ZCLCluster:
                     ZCLAttribute(attr_xml))
 
 class ZCLCommandCall:
-    def __init__(self, cluster_code, code, arglist):
-        self.cluster_code = cluster_code
-        self.code = code
+    def __init__(self, proto, arglist):
+        self.cluster_code = proto.cluster_code
+        self.code = proto.code
+        self.name = proto.name
         # copy the list to make sure there's no interaction with the given payload
         # note that we're not going as far as copying all the arguments.
         # maybe we should?
@@ -54,7 +55,7 @@ class ZCLCommandPrototype:
                         param in self.params]))
         arglist = [ZCLCommandArg(param.name, param.type, val) for param, val
                 in zip(self.params, args)]
-        return ZCLCommandCall(self.cluster_code, self.code, arglist)
+        return ZCLCommandCall(self, arglist)
 
 class ZCLCommandParam:
     def __init__(self, param_xml):
@@ -69,17 +70,18 @@ class ZCLCommandArg:
 
 class ZCLAttribute:
     def __init__(self, attr_xml):
-        self.name = attr_xml.text
-        self.code = int(attr_xml.get('code'), 0)
-        self.type = attr_xml.get('type')
-        if self.type in ['INT16U', 'INT16S', 'ENUM16', 'BITMAP16']:
-            self.size = 2
-        else if self.type in ['INT32U', 'INT32S', 'ENUM32', 'BITMAP32', 'IEEE_ADDRESS']:
-            self.size = 4
-        else if self.type in ['CHAR_STRING', 'OCTET_STRING']:
-            self.size = None
-        else:
-            self.size = 1
+        pass
+#        self.name = attr_xml.text
+#        self.code = int(attr_xml.get('code'), 0)
+#        self.type = attr_xml.get('type')
+#        if self.type in ['INT16U', 'INT16S', 'ENUM16', 'BITMAP16']:
+#            self.size = 2
+#        else if self.type in ['INT32U', 'INT32S', 'ENUM32', 'BITMAP32', 'IEEE_ADDRESS']:
+#            self.size = 4
+#        else if self.type in ['CHAR_STRING', 'OCTET_STRING']:
+#            self.size = None
+#        else:
+#            self.size = 1
 
 class ZCL():
     def __init__(self, xml_files = None):
@@ -101,7 +103,7 @@ class ZCL():
                         cluster.add_attributes(extension_xml)
 
 class ZBController():
-    def __init__(self, xml_files = None):
+    def __init__(self):
         self.conn = Telnet()
         self.sequence = 0
 
@@ -185,15 +187,16 @@ class ZBController():
         '''
         # read and discard any data already queued up in the buffer
         self.conn.read_eager()
-        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, \
-                clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)]'
+# T000AF5CA:RX len 4, ep 01, clus 0x0101 (Door Lock) FC 19 seq 13 cmd 01 payload[00 ]
+        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
+            'clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)\]'
             % (command.cluster_code, command.code)], timeout=timeout)
         if match is None:
             print "TIMED OUT waiting for " + command.name
             return False
         else:
             payload = [int(x, 16) for x in match.group(1).split()]
-            return _validate_payload(command.arglist, payload)
+            return _validate_payload(command.args, payload)
 
 class TimeoutError(StandardError):
     pass
