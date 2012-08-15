@@ -72,6 +72,14 @@ class ZCLAttribute:
         self.name = attr_xml.text
         self.code = int(attr_xml.get('code'), 0)
         self.type = attr_xml.get('type')
+        if self.type in ['INT16U', 'INT16S', 'ENUM16', 'BITMAP16']:
+            self.size = 2
+        else if self.type in ['INT32U', 'INT32S', 'ENUM32', 'BITMAP32', 'IEEE_ADDRESS']:
+            self.size = 4
+        else if self.type in ['CHAR_STRING', 'OCTET_STRING']:
+            self.size = None
+        else:
+            self.size = 1
 
 class ZCL():
     def __init__(self, xml_files = None):
@@ -159,6 +167,14 @@ class ZBController():
                 " ".join(["%02X" % x for x in payload])))
         self.conn.write('send 0x%04X 1 1\n' % destination)
         self.sequence = self.sequence + 1 % 0x100
+
+    def write_attribute(self, destination, attribute, value):
+        #TODO - need to include type ID somehow
+        payload = _list_from_arg(attribute.type, value)
+        self.conn.write('zcl global write 0x%04X 0x%04X {%s}' %
+                attribute.cluster_code, attribute.code,
+                " ".join(['%02X' % x for x in payload]))
+        self.conn.write('send 0x%04X 1 1\n' % destination)
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
     def wait_for_command(self, command, timeout=10):
@@ -329,3 +345,60 @@ def _pop_argument(type, payload):
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
+
+#  ZCL_NO_DATA_ATTRIBUTE_TYPE                        = 0x00, // No data
+#  ZCL_DATA8_ATTRIBUTE_TYPE                          = 0x08, // 8-bit data
+#  ZCL_DATA16_ATTRIBUTE_TYPE                         = 0x09, // 16-bit data
+#  ZCL_DATA24_ATTRIBUTE_TYPE                         = 0x0A, // 24-bit data
+#  ZCL_DATA32_ATTRIBUTE_TYPE                         = 0x0B, // 32-bit data
+#  ZCL_DATA40_ATTRIBUTE_TYPE                         = 0x0C, // 40-bit data
+#  ZCL_DATA48_ATTRIBUTE_TYPE                         = 0x0D, // 48-bit data
+#  ZCL_DATA56_ATTRIBUTE_TYPE                         = 0x0E, // 56-bit data
+#  ZCL_DATA64_ATTRIBUTE_TYPE                         = 0x0F, // 64-bit data
+#  ZCL_BOOLEAN_ATTRIBUTE_TYPE                        = 0x10, // Boolean
+#  ZCL_BITMAP8_ATTRIBUTE_TYPE                        = 0x18, // 8-bit bitmap
+#  ZCL_BITMAP16_ATTRIBUTE_TYPE                       = 0x19, // 16-bit bitmap
+#  ZCL_BITMAP24_ATTRIBUTE_TYPE                       = 0x1A, // 24-bit bitmap
+#  ZCL_BITMAP32_ATTRIBUTE_TYPE                       = 0x1B, // 32-bit bitmap
+#  ZCL_BITMAP40_ATTRIBUTE_TYPE                       = 0x1C, // 40-bit bitmap
+#  ZCL_BITMAP48_ATTRIBUTE_TYPE                       = 0x1D, // 48-bit bitmap
+#  ZCL_BITMAP56_ATTRIBUTE_TYPE                       = 0x1E, // 56-bit bitmap
+#  ZCL_BITMAP64_ATTRIBUTE_TYPE                       = 0x1F, // 64-bit bitmap
+#  ZCL_INT8U_ATTRIBUTE_TYPE                          = 0x20, // Unsigned 8-bit integer
+#  ZCL_INT16U_ATTRIBUTE_TYPE                         = 0x21, // Unsigned 16-bit integer
+#  ZCL_INT24U_ATTRIBUTE_TYPE                         = 0x22, // Unsigned 24-bit integer
+#  ZCL_INT32U_ATTRIBUTE_TYPE                         = 0x23, // Unsigned 32-bit integer
+#  ZCL_INT40U_ATTRIBUTE_TYPE                         = 0x24, // Unsigned 40-bit integer
+#  ZCL_INT48U_ATTRIBUTE_TYPE                         = 0x25, // Unsigned 48-bit integer
+#  ZCL_INT56U_ATTRIBUTE_TYPE                         = 0x26, // Unsigned 56-bit integer
+#  ZCL_INT64U_ATTRIBUTE_TYPE                         = 0x27, // Unsigned 64-bit integer
+#  ZCL_INT8S_ATTRIBUTE_TYPE                          = 0x28, // Signed 8-bit integer
+#  ZCL_INT16S_ATTRIBUTE_TYPE                         = 0x29, // Signed 16-bit integer
+#  ZCL_INT24S_ATTRIBUTE_TYPE                         = 0x2A, // Signed 24-bit integer
+#  ZCL_INT32S_ATTRIBUTE_TYPE                         = 0x2B, // Signed 32-bit integer
+#  ZCL_INT40S_ATTRIBUTE_TYPE                         = 0x2C, // Signed 40-bit integer
+#  ZCL_INT48S_ATTRIBUTE_TYPE                         = 0x2D, // Signed 48-bit integer
+#  ZCL_INT56S_ATTRIBUTE_TYPE                         = 0x2E, // Signed 56-bit integer
+#  ZCL_INT64S_ATTRIBUTE_TYPE                         = 0x2F, // Signed 64-bit integer
+#  ZCL_ENUM8_ATTRIBUTE_TYPE                          = 0x30, // 8-bit enumeration
+#  ZCL_ENUM16_ATTRIBUTE_TYPE                         = 0x31, // 16-bit enumeration
+#  ZCL_FLOAT_SEMI_ATTRIBUTE_TYPE                     = 0x38, // Semi-precision
+#  ZCL_FLOAT_SINGLE_ATTRIBUTE_TYPE                   = 0x39, // Single precision
+#  ZCL_FLOAT_DOUBLE_ATTRIBUTE_TYPE                   = 0x3A, // Double precision
+#  ZCL_OCTET_STRING_ATTRIBUTE_TYPE                   = 0x41, // Octet string
+#  ZCL_CHAR_STRING_ATTRIBUTE_TYPE                    = 0x42, // Character string
+#  ZCL_LONG_OCTET_STRING_ATTRIBUTE_TYPE              = 0x43, // Long octet string
+#  ZCL_LONG_CHAR_STRING_ATTRIBUTE_TYPE               = 0x44, // Long character string
+#  ZCL_ARRAY_ATTRIBUTE_TYPE                          = 0x48, // Array
+#  ZCL_STRUCT_ATTRIBUTE_TYPE                         = 0x4C, // Structure
+#  ZCL_SET_ATTRIBUTE_TYPE                            = 0x50, // Set
+#  ZCL_BAG_ATTRIBUTE_TYPE                            = 0x51, // Bag
+#  ZCL_TIME_OF_DAY_ATTRIBUTE_TYPE                    = 0xE0, // Time of day
+#  ZCL_DATE_ATTRIBUTE_TYPE                           = 0xE1, // Date
+#  ZCL_UTC_TIME_ATTRIBUTE_TYPE                       = 0xE2, // UTC Time
+#  ZCL_CLUSTER_ID_ATTRIBUTE_TYPE                     = 0xE8, // Cluster ID
+#  ZCL_ATTRIBUTE_ID_ATTRIBUTE_TYPE                   = 0xE9, // Attribute ID
+#  ZCL_BACNET_OID_ATTRIBUTE_TYPE                     = 0xEA, // BACnet OID
+#  ZCL_IEEE_ADDRESS_ATTRIBUTE_TYPE                   = 0xF0, // IEEE address
+#  ZCL_SECURITY_KEY_ATTRIBUTE_TYPE                   = 0xF1, // 128-bit security key
+#  ZCL_UNKNOWN_ATTRIBUTE_TYPE                        = 0xFF // Unknown
