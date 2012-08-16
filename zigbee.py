@@ -85,6 +85,13 @@ class ZCLAttribute:
         else:
             self.size = 1
 
+class ZCLEnum():
+    def __init__(self, enum_xml):
+        self.name = enum_xml.get('name')
+        for item_xml in enum_xml.findall('item'):
+            setattr(self, _attr_from_name(item_xml.get('name')),
+                int(item_xml.get('value'),0))
+
 class ZCL():
     def __init__(self, xml_files = None):
         clusters = []
@@ -103,6 +110,10 @@ class ZCL():
                             and cluster.code == int(extension_xml.get('code'), 0):
                         cluster.add_commands(extension_xml)
                         cluster.add_attributes(extension_xml)
+            for enum_xml in root.iter('enum'):
+                setattr(self,
+                        _attr_from_name(enum_xml.get('name')),
+                        ZCLEnum(enum_xml))
 
 class ZBController():
     def __init__(self):
@@ -360,62 +371,62 @@ def _pop_argument(type, payload):
 # as far as I can tell this isn't stored in any of the XML
 # files, so we just hard-code it here
 zcl_attribute_types = {
-   'NO_DATA'           : 0x00,
-   'DATA8'             : 0x08,
-   'DATA16'            : 0x09,
-   'DATA24'            : 0x0A,
-   'DATA32'            : 0x0B,
-   'DATA40'            : 0x0C,
-   'DATA48'            : 0x0D,
-   'DATA56'            : 0x0E,
-   'DATA64'            : 0x0F,
-   'BOOLEAN'           : 0x10,
-   'BITMAP8'           : 0x18,
-   'BITMAP16'          : 0x19,
-   'BITMAP24'          : 0x1A,
-   'BITMAP32'          : 0x1B,
-   'BITMAP40'          : 0x1C,
-   'BITMAP48'          : 0x1D,
-   'BITMAP56'          : 0x1E,
-   'BITMAP64'          : 0x1F,
-   'INT8U'             : 0x20,
-   'INT16U'            : 0x21,
-   'INT24U'            : 0x22,
-   'INT32U'            : 0x23,
-   'INT40U'            : 0x24,
-   'INT48U'            : 0x25,
-   'INT56U'            : 0x26,
-   'INT64U'            : 0x27,
-   'INT8S'             : 0x28,
-   'INT16S'            : 0x29,
-   'INT24S'            : 0x2A,
-   'INT32S'            : 0x2B,
-   'INT40S'            : 0x2C,
-   'INT48S'            : 0x2D,
-   'INT56S'            : 0x2E,
-   'INT64S'            : 0x2F,
-   'ENUM8'             : 0x30,
-   'ENUM16'            : 0x31,
-   'FLOAT_SEMI'        : 0x38,
-   'FLOAT_SINGLE'      : 0x39,
-   'FLOAT_DOUBLE'      : 0x3A,
-   'OCTET_STRING'      : 0x41,
-   'CHAR_STRING'       : 0x42,
-   'LONG_OCTET_STRING' : 0x43,
-   'LONG_CHAR_STRING'  : 0x44,
-   'ARRAY'             : 0x48,
-   'STRUCT'            : 0x4C,
-   'SET'               : 0x50,
-   'BAG'               : 0x51,
-   'TIME_OF_DAY'       : 0xE0,
-   'DATE'              : 0xE1,
-   'UTC_TIME'          : 0xE2,
-   'CLUSTER_ID'        : 0xE8,
-   'ATTRIBUTE_ID'      : 0xE9,
-   'BACNET_OID'        : 0xEA,
-   'IEEE_ADDRESS'      : 0xF0,
-   'SECURITY_KEY'      : 0xF1,
-   'UNKNOWN'           : 0xFF
+    'NO_DATA'           : 0x00,
+    'DATA8'             : 0x08,
+    'DATA16'            : 0x09,
+    'DATA24'            : 0x0A,
+    'DATA32'            : 0x0B,
+    'DATA40'            : 0x0C,
+    'DATA48'            : 0x0D,
+    'DATA56'            : 0x0E,
+    'DATA64'            : 0x0F,
+    'BOOLEAN'           : 0x10,
+    'BITMAP8'           : 0x18,
+    'BITMAP16'          : 0x19,
+    'BITMAP24'          : 0x1A,
+    'BITMAP32'          : 0x1B,
+    'BITMAP40'          : 0x1C,
+    'BITMAP48'          : 0x1D,
+    'BITMAP56'          : 0x1E,
+    'BITMAP64'          : 0x1F,
+    'INT8U'             : 0x20,
+    'INT16U'            : 0x21,
+    'INT24U'            : 0x22,
+    'INT32U'            : 0x23,
+    'INT40U'            : 0x24,
+    'INT48U'            : 0x25,
+    'INT56U'            : 0x26,
+    'INT64U'            : 0x27,
+    'INT8S'             : 0x28,
+    'INT16S'            : 0x29,
+    'INT24S'            : 0x2A,
+    'INT32S'            : 0x2B,
+    'INT40S'            : 0x2C,
+    'INT48S'            : 0x2D,
+    'INT56S'            : 0x2E,
+    'INT64S'            : 0x2F,
+    'ENUM8'             : 0x30,
+    'ENUM16'            : 0x31,
+    'FLOAT_SEMI'        : 0x38,
+    'FLOAT_SINGLE'      : 0x39,
+    'FLOAT_DOUBLE'      : 0x3A,
+    'OCTET_STRING'      : 0x41,
+    'CHAR_STRING'       : 0x42,
+    'LONG_OCTET_STRING' : 0x43,
+    'LONG_CHAR_STRING'  : 0x44,
+    'ARRAY'             : 0x48,
+    'STRUCT'            : 0x4C,
+    'SET'               : 0x50,
+    'BAG'               : 0x51,
+    'TIME_OF_DAY'       : 0xE0,
+    'DATE'              : 0xE1,
+    'UTC_TIME'          : 0xE2,
+    'CLUSTER_ID'        : 0xE8,
+    'ATTRIBUTE_ID'      : 0xE9,
+    'BACNET_OID'        : 0xEA,
+    'IEEE_ADDRESS'      : 0xF0,
+    'SECURITY_KEY'      : 0xF1,
+    'UNKNOWN'           : 0xFF
 }
 
 if __name__ == '__main__':
