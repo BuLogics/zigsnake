@@ -199,11 +199,16 @@ class ZBController():
         self.conn.write('zcl global read %d %d\n' %
                 (attribute.cluster_code, attribute.code))
         self.conn.write('send 0x%04X 1 1\n' % destination)
+        self.conn.interact()
+        _, match, _ = self.conn.expect([''])
+        if match is None:
+            print 'TIMED OUT reading attribute %s' % attribute.name
+            return None
         #TODO: wait for response on cluster and attribute_id, and store
         # value
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
-    def wait_for_command(self, command, timeout=10):
+    def expect_command(self, command, timeout=10):
         '''
         Waits for an incomming message and validates it against the given
         cluster ID, command ID, and arguments. Any arguments given as None
