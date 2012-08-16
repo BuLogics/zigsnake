@@ -2,6 +2,7 @@ from telnetlib import Telnet
 import xml.etree.ElementTree as xml
 
 def write_log(level, log_string):
+    pass
     #print log_string
 
 class ZCLCluster:
