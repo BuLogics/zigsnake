@@ -1,6 +1,9 @@
 from telnetlib import Telnet
 import xml.etree.ElementTree as xml
 
+def write_log(level, log_string):
+    #print log_string
+
 class ZCLCluster:
     def __init__(self, cluster_xml):
         self.name = cluster_xml.find('name').text
@@ -191,6 +194,8 @@ class ZBController():
         '''
 
         payload = _list_from_arg(attribute.type, value)
+        write_log(0, "Writing Attribute %s to %s" % (attribute.name,
+                " ".join(['%02X' % x for x in payload])))
         self.conn.write('zcl global write %d %d %d {%s}\n' %
                 (attribute.cluster_code, attribute.code, attribute.type_code,
                 " ".join(['%02X' % x for x in payload])))
@@ -211,21 +216,14 @@ class ZBController():
             print 'TIMED OUT reading attribute %s' % attribute.name
             return None
         payload = [int(x, 16) for x in match.group(1).split()]
-        print "payload: " + str(payload)
         attribute_id = _pop_argument('INT16U', payload)
-        print "attribute_id: " + str(attribute_id)
         status = _pop_argument('INT8U', payload)
-        print "status: " + str(status)
         if status != 0:
             print 'ATTRIBUTE READ FAILED with status 0x%02X' % status
             return None
         attribute_type_code = _pop_argument('INT8U', payload)
-        print "attribute_type_code: " + str(attribute_type_code)
         attribute_type = zcl_attribute_types[attribute_type_code]
-        print "attribute_type: " + attribute_type
-        value =  _pop_argument(attribute_type, payload)
-        print "value: " + str(value)
-        return value
+        return _pop_argument(attribute_type, payload)
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
     def expect_command(self, command, timeout=10):
@@ -307,6 +305,15 @@ def _list_from_arg(type, value):
                 (value >> 8) & 0xff,
                 (value >> 16) & 0xff,
                 value >> 24]
+    if type == 'INT32S':
+        #TODO: add min/max value checking
+        if value < 0:
+            value = ~(abs(value) - 1)
+        return [value & 0xff,
+                (value >> 8) & 0xff,
+                (value >> 16) & 0xff,
+                (value >> 24) & 0xff]
+
     if type == 'CHAR_STRING':
         # expects a string as a value
         payload = [len(value)]
@@ -375,6 +382,16 @@ def _pop_argument(type, payload):
         byte2 = payload.pop(0)
         byte3 = payload.pop(0)
         return (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0
+    if type == 'INT32S':
+        byte0 = payload.pop(0)
+        byte1 = payload.pop(0)
+        byte2 = payload.pop(0)
+        byte3 = payload.pop(0)
+        value = (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0
+        if value & 0x80000000:
+            return -((~value + 1) & 0xFFFFFFFF)
+        else:
+            return value
     if type == 'CHAR_STRING':
         string = ''
         string_len = payload.pop(0)

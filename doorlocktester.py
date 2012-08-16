@@ -1,4 +1,5 @@
 from zigbee import ZBController
+import time
 
 class DoorLockTester(ZBController):
     def __init__(self):
@@ -13,15 +14,18 @@ class DoorLockTester(ZBController):
             print "Please include a device to the network for testing"
             return
         ZBController.send_zcl_command(self, self.device_under_test, zcl_command)
+        time.sleep(3)
 
     def read_attribute(self, attribute):
         if not self.device_under_test:
             print "Please include a device to the network for testing"
             return
-        return ZBController.read_attribute(self, self.device_under_test, attribute)
+        value = ZBController.read_attribute(self, self.device_under_test, attribute)
+        return value
 
     def write_attribute(self, attribute, value):
         if not self.device_under_test:
             print "Please include a device to the network for testing"
             return
-        ZBController.write_attribute(self, self.device_under_test, zcl_command)
+        ZBController.write_attribute(self, self.device_under_test, attribute, value)
+        time.sleep(3)
