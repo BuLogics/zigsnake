@@ -13,3 +13,15 @@ class DoorLockTester(ZBController):
             print "Please include a device to the network for testing"
             return
         ZBController.send_zcl_command(self, self.device_under_test, zcl_command)
+
+    def read_attribute(self, attribute):
+        if not self.device_under_test:
+            print "Please include a device to the network for testing"
+            return
+        ZBController.read_attribute(self, self.device_under_test, zcl_command)
+
+    def write_attribute(self, attribute, value):
+        if not self.device_under_test:
+            print "Please include a device to the network for testing"
+            return
+        ZBController.write_attribute(self, self.device_under_test, zcl_command)

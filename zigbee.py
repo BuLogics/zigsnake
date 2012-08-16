@@ -69,19 +69,21 @@ class ZCLCommandArg:
         self.value = value
 
 class ZCLAttribute:
-    def __init__(self, attr_xml):
-        pass
-#        self.name = attr_xml.text
-#        self.code = int(attr_xml.get('code'), 0)
-#        self.type = attr_xml.get('type')
-#        if self.type in ['INT16U', 'INT16S', 'ENUM16', 'BITMAP16']:
-#            self.size = 2
-#        else if self.type in ['INT32U', 'INT32S', 'ENUM32', 'BITMAP32', 'IEEE_ADDRESS']:
-#            self.size = 4
-#        else if self.type in ['CHAR_STRING', 'OCTET_STRING']:
-#            self.size = None
-#        else:
-#            self.size = 1
+    def __init__(self, attr_xml=None):
+        if attr_xml is None:
+            return
+        self.name = attr_xml.text
+        self.code = int(attr_xml.get('code'), 0)
+        self.type = attr_xml.get('type')
+        self.type_code = zcl_attribute_types[self.type]
+        if self.type in ['INT16U', 'INT16S', 'ENUM16', 'BITMAP16']:
+            self.size = 2
+        elif self.type in ['INT32U', 'INT32S', 'ENUM32', 'UTC_TIME', 'BITMAP32', 'IEEE_ADDRESS']:
+            self.size = 4
+        elif self.type in ['CHAR_STRING', 'OCTET_STRING']:
+            self.size = None
+        else:
+            self.size = 1
 
 class ZCL():
     def __init__(self, xml_files = None):
@@ -171,12 +173,23 @@ class ZBController():
         self.sequence = self.sequence + 1 % 0x100
 
     def write_attribute(self, destination, attribute, value):
-        #TODO - need to include type ID somehow
+        '''
+        Writes an attribute on a device. Attributes are instances of
+        ZCLAttribute.
+        '''
+
         payload = _list_from_arg(attribute.type, value)
-        self.conn.write('zcl global write 0x%04X 0x%04X {%s}' %
-                attribute.cluster_code, attribute.code,
-                " ".join(['%02X' % x for x in payload]))
+        self.conn.write('zcl global write %d %d %d {%s}\n' %
+                (attribute.cluster_code, attribute.code, attribute.type_code,
+                " ".join(['%02X' % x for x in payload])))
         self.conn.write('send 0x%04X 1 1\n' % destination)
+
+    def read_attribute(self, destination, attribute):
+        self.conn.write('zcl global read %d %d\n' %
+                (attribute.cluster_code, attribute.code))
+        self.conn.write('send 0x%04X 1 1\n' % destination)
+        #TODO: wait for response on cluster and attribute_id, and store
+        # value
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
     def wait_for_command(self, command, timeout=10):
@@ -252,7 +265,7 @@ def _list_from_arg(type, value):
         if value < 0 or value > 0xffff:
             raise ValueError
         return [value & 0xff, value >> 8]
-    if type in ['INT32U', 'IEEE_ADDRESS', 'BITMAP32']:
+    if type in ['INT32U', 'UTC_TIME', 'IEEE_ADDRESS', 'BITMAP32']:
         if value < 0 or value > 0xffffffff:
             raise ValueError
         return [value & 0xff,
@@ -321,7 +334,7 @@ def _pop_argument(type, payload):
         lsb = payload.pop(0)
         msb = payload.pop(0)
         return (msb << 8) | lsb
-    if type in ['INT32U', 'IEEE_ADDRESS', 'BITMAP32']:
+    if type in ['INT32U', 'UTC_TIME', 'IEEE_ADDRESS', 'BITMAP32']:
         byte0 = payload.pop(0)
         byte1 = payload.pop(0)
         byte2 = payload.pop(0)
@@ -343,11 +356,6 @@ def _pop_argument(type, payload):
         return string
     print "WARNING: unrecognized type %s. Assuming INT8U" % type
     return _list_from_arg('INT8U', value)
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
 
 # as far as I can tell this isn't stored in any of the XML
 # files, so we just hard-code it here
@@ -409,3 +417,8 @@ zcl_attribute_types = {
    'SECURITY_KEY'      : 0xF1,
    'UNKNOWN'           : 0xFF
 }
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
+
