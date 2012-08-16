@@ -19,7 +19,7 @@ class ZCLCluster:
         for attr_xml in cluster_xml.findall('attribute'):
             setattr(self,
                     _attr_from_name(attr_xml.text),
-                    ZCLAttribute(attr_xml))
+                    ZCLAttribute(self.code, attr_xml))
 
 class ZCLCommandCall:
     def __init__(self, proto, arglist):
@@ -69,13 +69,14 @@ class ZCLCommandArg:
         self.value = value
 
 class ZCLAttribute:
-    def __init__(self, attr_xml=None):
+    def __init__(self, cluster_code, attr_xml=None):
         if attr_xml is None:
             return
         self.name = attr_xml.text
+        self.cluster_code = cluster_code
         self.code = int(attr_xml.get('code'), 0)
         self.type = attr_xml.get('type')
-        self.type_code = zcl_attribute_types[self.type]
+        self.type_code = zcl_attribute_type_codes[self.type]
         if self.type in ['INT16U', 'INT16S', 'ENUM16', 'BITMAP16']:
             self.size = 2
         elif self.type in ['INT32U', 'INT32S', 'ENUM32', 'UTC_TIME', 'BITMAP32', 'IEEE_ADDRESS']:
@@ -195,17 +196,36 @@ class ZBController():
                 " ".join(['%02X' % x for x in payload])))
         self.conn.write('send 0x%04X 1 1\n' % destination)
 
-    def read_attribute(self, destination, attribute):
+#T000BD5C5:RX len 11, ep 01, clus 0x000A (Time) FC 18 seq 20 cmd 01 payload[00 00 00 E2 00 00 00 00 ]
+#READ_ATTR_RESP: (Time)
+#- attr:0000, status:00
+#type:E2, val:00000000
+    def read_attribute(self, destination, attribute, timeout=10):
         self.conn.write('zcl global read %d %d\n' %
                 (attribute.cluster_code, attribute.code))
         self.conn.write('send 0x%04X 1 1\n' % destination)
-        self.conn.interact()
-        _, match, _ = self.conn.expect([''])
+        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
+            'clus 0x%04X \([a-zA-Z ]+\) .* cmd 01 payload\[([0-9A-Z ]*)\]' % attribute.cluster_code],
+            timeout=timeout)
         if match is None:
             print 'TIMED OUT reading attribute %s' % attribute.name
             return None
-        #TODO: wait for response on cluster and attribute_id, and store
-        # value
+        payload = [int(x, 16) for x in match.group(1).split()]
+        print "payload: " + str(payload)
+        attribute_id = _pop_argument('INT16U', payload)
+        print "attribute_id: " + str(attribute_id)
+        status = _pop_argument('INT8U', payload)
+        print "status: " + str(status)
+        if status != 0:
+            print 'ATTRIBUTE READ FAILED with status 0x%02X' % status
+            return None
+        attribute_type_code = _pop_argument('INT8U', payload)
+        print "attribute_type_code: " + str(attribute_type_code)
+        attribute_type = zcl_attribute_types[attribute_type_code]
+        print "attribute_type: " + attribute_type
+        value =  _pop_argument(attribute_type, payload)
+        print "value: " + str(value)
+        return value
 
     #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
     def expect_command(self, command, timeout=10):
@@ -223,9 +243,8 @@ class ZBController():
         if match is None:
             print "TIMED OUT waiting for " + command.name
             return False
-        else:
-            payload = [int(x, 16) for x in match.group(1).split()]
-            return _validate_payload(command.args, payload)
+        payload = [int(x, 16) for x in match.group(1).split()]
+        return _validate_payload(command.args, payload)
 
 class TimeoutError(StandardError):
     pass
@@ -371,11 +390,11 @@ def _pop_argument(type, payload):
             string_len -= 1
         return string
     print "WARNING: unrecognized type %s. Assuming INT8U" % type
-    return _list_from_arg('INT8U', value)
+    return _pop_argument('INT8U', payload)
 
 # as far as I can tell this isn't stored in any of the XML
 # files, so we just hard-code it here
-zcl_attribute_types = {
+zcl_attribute_type_codes = {
     'NO_DATA'           : 0x00,
     'DATA8'             : 0x08,
     'DATA16'            : 0x09,
@@ -433,6 +452,9 @@ zcl_attribute_types = {
     'SECURITY_KEY'      : 0xF1,
     'UNKNOWN'           : 0xFF
 }
+
+# create inverse dictionary for looking up attribute types from type codes
+zcl_attribute_types = dict([(v,k) for k,v in zcl_attribute_type_codes.items()])
 
 if __name__ == '__main__':
     import doctest
