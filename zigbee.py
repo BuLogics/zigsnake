@@ -1,9 +1,38 @@
 from telnetlib import Telnet
 import xml.etree.ElementTree as xml
+import inspect
 
 def write_log(level, log_string):
     pass
     #print log_string
+
+class Validator():
+    '''
+    This class is used as a superclass to collect validators that can be used
+    in expect_command calls. Subclasses should implement a 'validate' function
+    that will take in the received value and return True or False.
+    '''
+    pass
+
+class Equal(Validator):
+    '''
+    Validates that the received value is equal to the expected.
+    '''
+    def __init__(self, expected):
+        self.expected = expected
+    def validate(self, received):
+        return received == self.expected
+
+class Between(Validator):
+    '''
+    Validates that the received is between the low and high limits given
+    (inclusive).
+    '''
+    def __init__(self, low, high):
+        self.low = low
+        self.high = high
+    def validate(self, received):
+        return self.low <= received and received <= self.high
 
 class ZCLCluster:
     def __init__(self, cluster_xml):
@@ -226,7 +255,6 @@ class ZBController():
         attribute_type = zcl_attribute_types[attribute_type_code]
         return _pop_argument(attribute_type, payload)
 
-    #T000931A2:RX len 15, ep 01, clus 0x0101 (Door Lock) FC 09 seq 4E cmd 06 payload[06 00 01 00 06 06 36 37 38 39 30 30 ]
     def expect_command(self, command, timeout=10):
         '''
         Waits for an incomming message and validates it against the given
@@ -235,7 +263,6 @@ class ZBController():
         '''
         # read and discard any data already queued up in the buffer
         self.conn.read_eager()
-# T000AF5CA:RX len 4, ep 01, clus 0x0101 (Door Lock) FC 19 seq 13 cmd 01 payload[00 ]
         _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
             'clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)\]'
             % (command.cluster_code, command.code)], timeout=timeout)
@@ -345,10 +372,19 @@ def _validate_payload(arglist, payload):
     False
     '''
     for arg in arglist:
-        value = _pop_argument(arg.type, payload)
-        if arg.value is not None and value != arg.value:
+        received = _pop_argument(arg.type, payload)
+        if arg.value is None:
+            continue
+        elif Validator in inspect.getmro(arg.value.__class__):
+            #TODO: don't break demeter without good reason
+            if not arg.value.validate(received):
+                print 'Validation failed on %s: got %s' % (arg.name,
+                    str(received))
+                return False
+        elif received != arg.value:
+            # arg value isn't a validator, fall back to simple comparison
             print 'Wrong value for %s: Expected %s, got %s' % (arg.name,
-                    str(arg.value), str(value))
+                    str(arg.value), str(received))
             return False
     return True
 
