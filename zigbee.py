@@ -165,7 +165,7 @@ class ZBController():
         return int(match.group(1), 0)
 
     def form_network(self):
-        status = self._network_command('form', '19 0 0xbabe', 'form')
+        status = self._network_command('form', '19 0 0xfafa', 'form')
         if status == 0x70:
             print "Already in Network"
         elif status == 0x00:
