@@ -29,3 +29,9 @@ class DoorLockTester(ZBController):
             return
         ZBController.write_attribute(self, self.device_under_test, attribute, value)
         time.sleep(3)
+    
+    def make_server(self):
+        ZBController.make_server(self)
+
+    def make_client(self):
+        ZBController.make_client(self)

@@ -231,6 +231,12 @@ class ZBController():
                 " ".join(['%02X' % x for x in payload])))
         self.conn.write('send 0x%04X 1 1\n' % destination)
 
+    def make_server(self):
+        self.conn.write('zcl global direction 1\n')
+
+    def make_client(self):
+        self.conn.write('zcl global direction 0\n')
+
 #T000BD5C5:RX len 11, ep 01, clus 0x000A (Time) FC 18 seq 20 cmd 01 payload[00 00 00 E2 00 00 00 00 ]
 #READ_ATTR_RESP: (Time)
 #- attr:0000, status:00
