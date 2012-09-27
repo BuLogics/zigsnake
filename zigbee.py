@@ -270,19 +270,6 @@ class ZBController():
         attribute_type = zcl_attribute_types[attribute_type_code]
         return _pop_argument(attribute_type, payload)
 
-    def read_ota_attribute(self, destination, attribute, timeout=10):
-        self.conn.write('zcl global read %d %d\n' %
-                (attribute.cluster_code, attribute.code))
-        self.conn.write('send 0x%04X 1 1\n' % destination)
-        time.sleep(3)
-        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
-            'clus 0x%04X \([a-zA-Z0-9\.\[\]\(\) ]+\) .* cmd 01 payload\[([0-9A-Z ]*)\]' % attribute.cluster_code],
-            timeout=timeout)
-        if match is None:
-            print 'TIMED OUT reading attribute %s' % attribute.name
-            return None
-        return '%s successfully read' %attribute.code
-
     def expect_command(self, command, timeout=10):
         '''
         Waits for an incomming message and validates it against the given
