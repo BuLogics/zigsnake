@@ -7,7 +7,7 @@ def write_log(level, log_string):
     pass
     #print log_string
 
-class Validator():
+class Validator:
     '''
     This class is used as a superclass to collect validators that can be used
     in expect_command calls. Subclasses should implement a 'validate' function
@@ -120,14 +120,14 @@ class ZCLAttribute:
         else:
             self.size = 1
 
-class ZCLEnum():
+class ZCLEnum:
     def __init__(self, enum_xml):
         self.name = enum_xml.get('name')
         for item_xml in enum_xml.findall('item'):
             setattr(self, _attr_from_name(item_xml.get('name')),
                 int(item_xml.get('value'),0))
 
-class ZCL():
+class ZCL:
     def __init__(self, xml_files = None):
         clusters = []
         if not xml_files:
@@ -150,7 +150,7 @@ class ZCL():
                         _attr_from_name(enum_xml.get('name')),
                         ZCLEnum(enum_xml))
 
-class ZBController():
+class ZBController:
     def __init__(self):
         self.conn = Telnet()
         self.sequence = 0
