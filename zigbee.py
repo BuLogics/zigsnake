@@ -1,4 +1,5 @@
 from telnetlib import Telnet
+import unittest
 import zcl
 import inspect
 import time
@@ -22,7 +23,7 @@ class Equal(Validator):
     def __init__(self, expected):
         self.expected = expected
     def validate(self, received):
-        return received == self.expected
+        unittest.assertEqual(received, self.expected)
 
 class Between(Validator):
     '''
@@ -33,7 +34,8 @@ class Between(Validator):
         self.low = low
         self.high = high
     def validate(self, received):
-        return self.low <= received and received <= self.high
+        if received < self.low or received > self.high:
+            raise AssertionError("Received %d, not between %d and %d" % (received, self.low, self.high))
 
 class ZBController:
     def __init__(self):
@@ -142,20 +144,17 @@ class ZBController:
         _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
             'clus 0x%04X \([a-zA-Z0-9\.\[\]\(\) ]+\) .* cmd 01 payload\[([0-9A-Z ]*)\]' % attribute.cluster_code],
             timeout=timeout)
-        if match is None:
-            print 'TIMED OUT reading attribute %s' % attribute.name
-            return None
+        unittest.assertIsNotNone(match, 'TIMED OUT reading attribute %s' % attribute.name)
         payload = [int(x, 16) for x in match.group(1).split()]
         attribute_id = _pop_argument('INT16U', payload)
         status = _pop_argument('INT8U', payload)
         if status != 0:
-            print 'ATTRIBUTE READ FAILED with status 0x%02X' % status
-            return None
+            raise AssertionError('Attribute Read failed with status 0x%02X' % status)
         attribute_type_code = _pop_argument('INT8U', payload)
         attribute_type = zcl.get_type_string(attribute_type_code)
         return _pop_argument(attribute_type, payload)
 
-    def expect_command(self, command, timeout=10):
+    def expect_zcl_command(self, command, timeout=10):
         '''
         Waits for an incomming message and validates it against the given
         cluster ID, command ID, and arguments. Any arguments given as None
@@ -166,11 +165,9 @@ class ZBController:
         _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
             'clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)\]'
             % (command.cluster_code, command.code)], timeout=timeout)
-        if match is None:
-            print "TIMED OUT waiting for " + command.name
-            return False
+        unittest.assertIsNotNone(match, "TIMED OUT waiting for " + command.name)
         payload = [int(x, 16) for x in match.group(1).split()]
-        return _validate_payload(command.args, payload)
+        _validate_payload(command.args, payload)
 
 class TimeoutError(StandardError):
     pass
@@ -246,22 +243,21 @@ def _validate_payload(arglist, payload):
     Wrong value for arg1: Expected 10, got 11
     False
     '''
-    for arg in arglist:
-        received = _pop_argument(arg.type, payload)
-        if arg.value is None:
-            continue
-        elif Validator in inspect.getmro(arg.value.__class__):
-            #TODO: don't break demeter without good reason
-            if not arg.value.validate(received):
-                print 'Validation failed on %s: got %s' % (arg.name,
-                    str(received))
-                return False
-        elif received != arg.value:
-            # arg value isn't a validator, fall back to simple comparison
-            print 'Wrong value for %s: Expected %s, got %s' % (arg.name,
-                    str(arg.value), str(received))
-            return False
-    return True
+    try:
+        for arg in arglist:
+            received = _pop_argument(arg.type, payload)
+            if arg.value is None:
+                # don't validate if expected value is None
+                continue
+            elif Validator in inspect.getmro(arg.value.__class__):
+                #TODO: don't break demeter without good reason
+                arg.value.validate(received)
+            else:
+                # arg value isn't a validator, fall back to simple comparison
+                Equal(arg.value).validate(received)
+    except AssertionError as e:
+        # catch and re-throw, adding the argument name to the error message
+        raise AssertionError("Wrong value for %s: %s" % (arg.name, e.msg))
 
 def _pop_argument(type, payload):
     '''
