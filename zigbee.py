@@ -23,7 +23,9 @@ class Equal(Validator):
     def __init__(self, expected):
         self.expected = expected
     def validate(self, received):
-        unittest.assertEqual(received, self.expected)
+        if self.expected != received:
+            raise AssertionError("Received %s, Expected %s" %
+                    (str(received), str(self.expected)))
 
 class Between(Validator):
     '''
@@ -144,7 +146,8 @@ class ZBController:
         _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
             'clus 0x%04X \([a-zA-Z0-9\.\[\]\(\) ]+\) .* cmd 01 payload\[([0-9A-Z ]*)\]' % attribute.cluster_code],
             timeout=timeout)
-        unittest.assertIsNotNone(match, 'TIMED OUT reading attribute %s' % attribute.name)
+        if match is None:
+            raise AssertionError('TIMED OUT reading attribute %s' % attribute.name)
         payload = [int(x, 16) for x in match.group(1).split()]
         attribute_id = _pop_argument('INT16U', payload)
         status = _pop_argument('INT8U', payload)
@@ -165,7 +168,8 @@ class ZBController:
         _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
             'clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)\]'
             % (command.cluster_code, command.code)], timeout=timeout)
-        unittest.assertIsNotNone(match, "TIMED OUT waiting for " + command.name)
+        if match is None:
+            raise AssertionError("TIMED OUT waiting for " + command.name)
         payload = [int(x, 16) for x in match.group(1).split()]
         _validate_payload(command.args, payload)
 
