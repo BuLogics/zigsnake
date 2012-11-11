@@ -57,31 +57,27 @@ class ZBController:
     def form_network(self):
         status = self._network_command('form', '19 0 0xfafa', 'form')
         if status == 0x70:
-            print "Already in Network"
-        elif status == 0x00:
-            print "Successfully formed network"
-        else:
+            #already in network
+            pass
+        elif status != 0x00:
             raise UnhandledStatusError()
 
     def leave_network(self):
         status = self._network_command('leave', '', 'leave')
         if status == 0x70:
-            print "Already Out of Network"
+            # already out of network
+            pass
         elif status == 0x00:
             out = self.conn.read_until('EMBER_NETWORK_DOWN', timeout=2)
-            if out.endswith('EMBER_NETWORK_DOWN'):
-                print "Successfully left network"
-            else:
+            if not out.endswith('EMBER_NETWORK_DOWN'):
                 raise TimeoutError()
         else:
             raise UnhandledStatusError()
 
     def enable_permit_join(self):
         status = self._network_command('pjoin', '0xff', 'pJoin for 255 sec:')
-        if status == 0x00:
-            print "Pjoin Enabled"
-        else:
-            print "Error enabling pjoin: 0x%x" % status
+        if status != 0x00:
+            raise NetworkOperationError("Error enabling pjoin: 0x%x" % status)
 
     def disable_permit_join(self):
         status = self._network_command('pjoin', '0x00', 'pJoin for 0 sec:')
@@ -177,6 +173,9 @@ class TimeoutError(StandardError):
     pass
 
 class UnhandledStatusError(StandardError):
+    pass
+
+class NetworkOperationError(StandardError):
     pass
 
 def _list_from_arg(type, value):
