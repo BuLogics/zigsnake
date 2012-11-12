@@ -54,8 +54,9 @@ class ZBController:
             raise TimeoutError()
         return int(match.group(1), 0)
 
-    def form_network(self):
-        status = self._network_command('form', '19 0 0xfafa', 'form')
+    def form_network(self, channel=19, power=0, pan_id = 0xfafa):
+        status = self._network_command('form', '%d %d 0x%04x' %
+                (channel, power, pan_id), 'form')
         if status == 0x70:
             #already in network
             pass
