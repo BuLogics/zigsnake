@@ -24,8 +24,8 @@ class Equal(Validator):
         self.expected = expected
     def validate(self, received):
         if self.expected != received:
-            raise AssertionError("Received %s, Expected %s" %
-                    (str(received), str(self.expected)))
+            raise AssertionError("Expected %s, Received %s" %
+                    (str(self.expected), str(received)))
 
 class Between(Validator):
     '''
@@ -261,7 +261,7 @@ def _validate_payload(arglist, payload):
                 Equal(arg.value).validate(received)
     except AssertionError as e:
         # catch and re-throw, adding the argument name to the error message
-        raise AssertionError("Wrong value for %s: %s" % (arg.name, e.msg))
+        raise AssertionError("Wrong value for %s: %s" % (arg.name, str(e)))
 
 def _pop_argument(type, payload):
     '''
