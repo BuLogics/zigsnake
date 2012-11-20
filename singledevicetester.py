@@ -52,7 +52,7 @@ class SingleDeviceTester(ZBController):
         self.config.set('device_under_test', 'node_id',
                         self.dut_node_id)
         self.config.set('device_under_test', 'ieee_address',
-                        self.dut_node_id)
+                        self.dut_ieee_address)
         with open(self.config_filename, 'w') as config_file:
             self.config.write(config_file)
 
