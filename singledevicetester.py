@@ -18,6 +18,9 @@ class SingleDeviceTester(ZBController):
         self.open(self.controller_ip)
         if self.dut_node_id is None:
             self.wait_for_joined()
+        if self.dut_ieee_address is None:
+            self.dut_ieee_address = raw_input(
+                    "Please enter ieee address of device under test: ")
         self.save_configs()
 
     def load_configs(self):
@@ -45,6 +48,8 @@ class SingleDeviceTester(ZBController):
         self.config.set('controller', 'controller_ip',
                         self.controller_ip)
         self.config.set('device_under_test', 'node_id',
+                        self.dut_node_id)
+        self.config.set('device_under_test', 'ieee_address',
                         self.dut_node_id)
         with open(self.config_filename, 'w') as config_file:
             self.config.write(config_file)
