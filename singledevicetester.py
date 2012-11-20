@@ -3,6 +3,13 @@ import time
 from ConfigParser import RawConfigParser, NoSectionError, NoOptionError
 
 class SingleDeviceTester(ZBController):
+    '''
+    This class is intended to take care of some of the bookkeeping when writing
+    test scripts that test a single device. It takes care of including the
+    device under test if it hasn't been included already. It also wraps the
+    commands that interact with other ZigBee nodes and targets the device under
+    test, so the test writer doesn't need to keep track of the device node ID.
+    '''
     def __init__(self):
         ZBController.__init__(self)
         self.load_configs()
