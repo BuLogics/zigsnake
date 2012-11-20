@@ -16,7 +16,7 @@ class SingleDeviceTester(ZBController):
         if self.controller_ip is None:
             self.controller_ip = raw_input("Please enter the controller IP: ")
         self.open(self.controller_ip)
-        if self.device_under_test is None:
+        if self.dut_node_id is None:
             self.wait_for_joined()
         self.save_configs()
 
@@ -28,22 +28,24 @@ class SingleDeviceTester(ZBController):
             self.config.add_section('device_under_test')
         if 'controller' not in self.config.sections():
             self.config.add_section('controller')
-        if self.config.has_option('device_under_test', 'node_id'):
-            self.device_under_test = self.config.getint('device_under_test',
-                                                     'node_id')
+        self.dut_node_id = self.get_config_or_none(
+                'device_under_test', 'node_id')
+        self.dut_ieee_address = self.get_config_or_none(
+                'device_under_test', 'ieee_address')
+        self.controller_ip = self.get_config_or_none(
+                'controller', 'controller_ip')
+
+    def get_config_or_none(self, section, option):
+        if self.config.has_option(section, option):
+            return self.config.get(section, option)
         else:
-            self.device_under_test = None
-        if self.config.has_option('controller', 'controller_ip'):
-            self.controller_ip = self.config.get('controller',
-                                                 'controller_ip')
-        else:
-            self.controller_ip = None
+            return None
 
     def save_configs(self):
         self.config.set('controller', 'controller_ip',
                         self.controller_ip)
         self.config.set('device_under_test', 'node_id',
-                        self.device_under_test)
+                        self.dut_node_id)
         with open(self.config_filename, 'w') as config_file:
             self.config.write(config_file)
 
@@ -51,33 +53,33 @@ class SingleDeviceTester(ZBController):
         try:
             self.enable_permit_join()
             print "Please initiate the inclusion process on the device"
-            self.device_under_test = ZBController.wait_for_join(self)
+            self.dut_node_id = ZBController.wait_for_join(self)
             self.disable_permit_join()
         except NetworkOperationError:
             print "Error joining device. Trying to form a new network"
             self.form_network()
             self.enable_permit_join()
             print "Please initiate the inclusion process on the device"
-            self.device_under_test = ZBController.wait_for_join(self)
+            self.dut_node_id = ZBController.wait_for_join(self)
             self.disable_permit_join()
 
     def send_zcl_command(self, zcl_command):
-        if not self.device_under_test:
+        if not self.dut_node_id:
             print "Please include a device to the network for testing"
             return
-        ZBController.send_zcl_command(self, self.device_under_test, zcl_command)
+        ZBController.send_zcl_command(self, self.dut_node_id, zcl_command)
         time.sleep(3)
 
     def read_attribute(self, attribute):
-        if not self.device_under_test:
+        if not self.dut_node_id:
             print "Please include a device to the network for testing"
             return
-        value = ZBController.read_attribute(self, self.device_under_test, attribute)
+        value = ZBController.read_attribute(self, self.dut_node_id, attribute)
         return value
 
     def write_attribute(self, attribute, value):
-        if not self.device_under_test:
+        if not self.dut_node_id:
             print "Please include a device to the network for testing"
             return
-        ZBController.write_attribute(self, self.device_under_test, attribute, value)
+        ZBController.write_attribute(self, self.dut_node_id, attribute, value)
         time.sleep(3)
