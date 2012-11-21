@@ -119,7 +119,7 @@ class ZBController:
         a string with hex bytes separated by spaces.
         '''
         self.conn.write('zdo bind %d 0 0 %d {%s} {}' % (
-                node_id, cluster_id, ieee_string))
+                node_id, cluster_id, node_ieee_address))
 
     def write_attribute(self, destination, attribute, value):
         '''
