@@ -3,6 +3,7 @@ import unittest
 import zcl
 import inspect
 import time
+import sys
 
 def write_log(level, log_string):
     pass
@@ -48,7 +49,7 @@ class ZBController:
         Telnet.open(self.conn, hostname, 4900)
 
     def _network_command(self, command, args, status_prefix):
-        self.conn.write('network %s %s\n' % (command, args))
+        self.write('network %s %s' % (command, args))
         _, match, _ = self.conn.expect(['%s (0x[0-9A-F]{2})' % status_prefix], timeout=2)
         if match is None:
             raise TimeoutError()
@@ -98,17 +99,18 @@ class ZBController:
         payload = []
         for arg in cmd.args:
             payload += _list_from_arg(arg.type, arg.value)
-        self.conn.write('raw 0x%04X {01 %02X %02X %s}\n' %
+        self.write('raw 0x%04X {01 %02X %02X %s}' %
                 (cmd.cluster_code, self.sequence, cmd.code,
                 " ".join(["%02X" % x for x in payload])))
-        self.conn.write('send 0x%04X 1 1\n' % destination)
+        self.write('send 0x%04X 1 1' % destination)
         self.sequence = self.sequence + 1 % 0x100
+        #TODO: wait for response
 
     def send_zcl_ota_notify(self, destination, cmd):
         payload = []
         for arg in cmd.args:
             payload += _list_from_arg(arg.type, arg.value)
-        self.conn.write('zcl ota server notify 0x%04X %02X %s\n' %
+        self.write('zcl ota server notify 0x%04X %02X %s' %
                 (destination, 1, " ".join(["0x%04X" % x for x in payload])))
         self.sequence = self.sequence + 1 % 0x100
 
@@ -118,8 +120,9 @@ class ZBController:
         Expects node_id and cluster_id as integers, and node_ieee_address as
         a string with hex bytes separated by spaces.
         '''
-        self.conn.write('zdo bind %d 0 0 %d {%s} {}' % (
+        self.write('zdo bind %d 1 1 %d {%s} {}' % (
                 node_id, cluster_id, node_ieee_address))
+        #TODO: wait for response
 
     def write_attribute(self, destination, attribute, value):
         '''
@@ -130,25 +133,37 @@ class ZBController:
         payload = _list_from_arg(attribute.type, value)
         write_log(0, "Writing Attribute %s to %s" % (attribute.name,
                 " ".join(['%02X' % x for x in payload])))
-        self.conn.write('zcl global write %d %d %d {%s}\n' %
+        self.write('zcl global write %d %d %d {%s}' %
                 (attribute.cluster_code, attribute.code, attribute.type_code,
                 " ".join(['%02X' % x for x in payload])))
-        self.conn.write('send 0x%04X 1 1\n' % destination)
+        self.write('send 0x%04X 1 1' % destination)
+        #TODO: wait for response
+
+    def write_local_attribute(self, attribute, value):
+        '''
+        Writes an attribute that's local to the controller.
+        '''
+        payload = _list_from_arg(attribute.type, value)
+        payload_string = " ".join(['%02X' % x for x in payload])
+        self.write('write 1 %d %d 1 %d {%s}' % (
+            attribute.cluster_code, attribute.code, attribute.type_code,
+            payload_string))
+        time.sleep(1)
 
     def make_server(self):
-        self.conn.write('zcl global direction 1\n')
+        self.write('zcl global direction 1')
 
     def make_client(self):
-        self.conn.write('zcl global direction 0\n')
+        self.write('zcl global direction 0')
 
 #T000BD5C5:RX len 11, ep 01, clus 0x000A (Time) FC 18 seq 20 cmd 01 payload[00 00 00 E2 00 00 00 00 ]
 #READ_ATTR_RESP: (Time)
 #- attr:0000, status:00
 #type:E2, val:00000000
     def read_attribute(self, destination, attribute, timeout=10):
-        self.conn.write('zcl global read %d %d\n' %
+        self.write('zcl global read %d %d' %
                 (attribute.cluster_code, attribute.code))
-        self.conn.write('send 0x%04X 1 1\n' % destination)
+        self.write('send 0x%04X 1 1' % destination)
         _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
             'clus 0x%04X \([a-zA-Z0-9\.\[\]\(\) ]+\) .* cmd 01 payload\[([0-9A-Z ]*)\]' % attribute.cluster_code],
             timeout=timeout)
@@ -178,6 +193,9 @@ class ZBController:
             raise AssertionError("TIMED OUT waiting for " + command.name)
         payload = [int(x, 16) for x in match.group(1).split()]
         _validate_payload(command.args, payload)
+
+    def write(self, msg):
+        self.conn.write(msg + '\n')
 
 class TimeoutError(StandardError):
     pass

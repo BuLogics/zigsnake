@@ -80,7 +80,7 @@ class SingleDeviceTester(ZBController):
 
     def write_attribute(self, attribute, value):
         ZBController.write_attribute(self, self.dut_node_id, attribute, value)
-        time.sleep(3)
+        time.sleep(4)
 
     def bind_node(self, cluster_id):
         ZBController.bind_node(self, self.dut_node_id,
