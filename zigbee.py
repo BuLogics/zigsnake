@@ -112,6 +112,15 @@ class ZBController:
                 (destination, 1, " ".join(["0x%04X" % x for x in payload])))
         self.sequence = self.sequence + 1 % 0x100
 
+    def bind_node(self, node_id, node_ieee_address, cluster_id):
+        '''
+        Binds a destination node to us.
+        Expects node_id and cluster_id as integers, and node_ieee_address as
+        a string with hex bytes separated by spaces.
+        '''
+        self.conn.write('zdo bind %d 0 0 %d {%s} {}' % (
+                node_id, cluster_id, ieee_string))
+
     def write_attribute(self, destination, attribute, value):
         '''
         Writes an attribute on a device. Attributes are instances of

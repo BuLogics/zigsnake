@@ -71,22 +71,18 @@ class SingleDeviceTester(ZBController):
             self.disable_permit_join()
 
     def send_zcl_command(self, zcl_command):
-        if not self.dut_node_id:
-            print "Please include a device to the network for testing"
-            return
         ZBController.send_zcl_command(self, self.dut_node_id, zcl_command)
         time.sleep(3)
 
     def read_attribute(self, attribute):
-        if not self.dut_node_id:
-            print "Please include a device to the network for testing"
-            return
         value = ZBController.read_attribute(self, self.dut_node_id, attribute)
         return value
 
     def write_attribute(self, attribute, value):
-        if not self.dut_node_id:
-            print "Please include a device to the network for testing"
-            return
         ZBController.write_attribute(self, self.dut_node_id, attribute, value)
         time.sleep(3)
+
+    def bind_node(self, cluster_id):
+        ZBController.bind_node(self, self.dut_node_id,
+                               self.dut_ieee_address, cluster_id)
+
