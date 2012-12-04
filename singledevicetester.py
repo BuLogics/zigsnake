@@ -34,7 +34,7 @@ class SingleDeviceTester(ZBController):
         self.dut_node_id = self.get_config_or_none(
                 'device_under_test', 'node_id')
         if self.dut_node_id:
-            self.dut_node_id = int(self.dut_node_id)
+            self.dut_node_id = int(self.dut_node_id, 0)
         self.dut_ieee_address = self.get_config_or_none(
                 'device_under_test', 'ieee_address')
         self.controller_ip = self.get_config_or_none(
