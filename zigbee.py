@@ -130,7 +130,7 @@ class ZBController:
         ZCLAttribute.
         '''
 
-        payload = _list_from_arg(attribute.type, value)
+        payload = _list_from_arg(attribute.type, value, strip_string_length=True)
         write_log(0, "Writing Attribute %s to %s" % (attribute.name,
                 " ".join(['%02X' % x for x in payload])))
         self.write('zcl global write %d %d %d {%s}' %
@@ -206,10 +206,14 @@ class UnhandledStatusError(StandardError):
 class NetworkOperationError(StandardError):
     pass
 
-def _list_from_arg(type, value):
+def _list_from_arg(type, value, strip_string_length=False):
     '''
-    Takes in a type string and a value and returns the value converted
-    into a list suitable for a ZCL payload.
+    Takes in a type string and a value and returns the value converted into a
+    list suitable for a ZCL payload. Set strip_string_length to True if you
+    want the byte list for string data to be stripped of the length byte, for
+    instance if it's being used in an Attribute Write, which prepends the
+    length for you.
+
     >>> _list_from_arg('INT8U', 0x30)
     [48]
     >>> _list_from_arg('CHAR_STRING', '6789')
@@ -247,13 +251,19 @@ def _list_from_arg(type, value):
 
     if type == 'CHAR_STRING':
         # expects a string as a value
-        payload = [len(value)]
+        if strip_string_length:
+            payload = []
+        else:
+            payload = [len(value)]
         for char in value:
             payload.append(ord(char))
         return payload
     if type == 'OCTET_STRING':
         # expects a list of bytes as a value
-        payload = [len(value)]
+        if strip_string_length:
+            payload = []
+        else:
+            payload = [len(value)]
         for byte in value:
             payload += _list_from_arg('INT8U', byte)
         return payload
