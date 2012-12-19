@@ -86,3 +86,6 @@ class SingleDeviceTester(ZBController):
         ZBController.bind_node(self, self.dut_node_id,
                                self.dut_ieee_address, cluster_id)
 
+    def configure_reporting(self, *args):
+        ZBController.configure_reporting(self, self.dut_node_id, *args)
+

@@ -124,6 +124,19 @@ class ZBController:
                 node_id, cluster_id, node_ieee_address))
         #TODO: wait for response
 
+    def configure_reporting(self, destination, attribute, min_interval, max_interval, threshold):
+        '''
+        Configures the device to report the given attribute to the controller.
+        '''
+        if attribute.type in ['INT8U', 'INT16U', 'INT32U', 'INT8S', 'INT16S', 'INT32S']:
+            threshold_value_list = _list_from_arg(attribute.type, threshold)
+        else:
+            threshold_value_list = [0]
+        self.write('zcl global send-me-a-report %d %d %d %d %d {%s}' % (
+            attribute.cluster_code, attribute.code, attribute.type_code,
+            min_interval, max_interval, _hex_string_from_list(threshold_value_list)))
+        self.write('send 0x%04X 1 1' % destination)
+
     def write_attribute(self, destination, attribute, value):
         '''
         Writes an attribute on a device. Attributes are instances of
@@ -205,6 +218,9 @@ class UnhandledStatusError(StandardError):
 
 class NetworkOperationError(StandardError):
     pass
+
+def _hex_string_from_list(values):
+    return " ".join(['%02X' % v for v in values])
 
 def _list_from_arg(type, value, strip_string_length=False):
     '''
