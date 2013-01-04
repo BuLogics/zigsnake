@@ -15,6 +15,13 @@ ZigBee attributes as part of the ZCL, and also attributes of a Python
 object. I will try to always use ZigBee attribute to refer to the former
 and Python attribute to refer to the latter.
 
+*Note:* ZigSnake is in early phases of development and generally is
+improved and fixed as we test the ZigBee products we develop. There are
+some areas of the code that are in need of cleaning up and quite a few
+valid use cases that it doesn't handle (such as endpoints other than 1).
+Please get in touch if you're interested in contributing to make this
+more production-ready.
+
 Included Modules
 ----------------
 
