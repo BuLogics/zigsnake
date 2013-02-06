@@ -120,7 +120,7 @@ class ZCL:
 def _attr_from_name(name):
     '''
     This assumes that the name is either in CamelCase or
-    words separated by spaces, and converts to all lowercase
+    words separated by spaces or dashes, and converts to all lowercase
     with words separated by underscores. It also removes
     any punctuation from the space-separated names.
 
@@ -132,12 +132,12 @@ def _attr_from_name(name):
     'this_is_a_camel_case_name'
     >>> _attr_from_name('thisIsAnotherCamelCaseName')
     'this_is_another_camel_case_name'
-    >>> _attr_from_name('this-has.some Punctuation')
-    'thishassome_punctuation'
+    >>> _attr_from_name("this-has.someone's Punctuation")
+    'this_hassomeones_punctuation'
     '''
     if ' ' in name:
         return name.translate(
-                string.maketrans(' ', '_'), string.punctuation).lower()
+                string.maketrans(' -', '__'), string.punctuation.replace('-','')).lower()
     #no spaces, so look for uppercase letters and prepend an underscore
     attr_name = ''
     for i, letter in enumerate(name):
