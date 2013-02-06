@@ -1,4 +1,6 @@
 import xml.etree.ElementTree as xml
+import string
+import doctest
 
 class ZCLCluster:
     def __init__(self, cluster_xml):
@@ -119,7 +121,8 @@ def _attr_from_name(name):
     '''
     This assumes that the name is either in CamelCase or
     words separated by spaces, and converts to all lowercase
-    with words separated by underscores.
+    with words separated by underscores. It also removes
+    any punctuation from the space-separated names.
 
     >>> _attr_from_name('This is a name with spaces')
     'this_is_a_name_with_spaces'
@@ -129,9 +132,12 @@ def _attr_from_name(name):
     'this_is_a_camel_case_name'
     >>> _attr_from_name('thisIsAnotherCamelCaseName')
     'this_is_another_camel_case_name'
+    >>> _attr_from_name('this-has.some Punctuation')
+    'thishassome_punctuation'
     '''
     if ' ' in name:
-        return name.replace(' ', '_').lower()
+        return name.translate(
+                string.maketrans(' ', '_'), string.punctuation).lower()
     #no spaces, so look for uppercase letters and prepend an underscore
     attr_name = ''
     for i, letter in enumerate(name):
@@ -206,3 +212,6 @@ zcl_attribute_types = dict([(v,k) for k,v in zcl_attribute_type_codes.items()])
 
 def get_type_string(type_code):
     return zcl_attribute_types[type_code]
+
+if __name__ == "__main__":
+    doctest.testmod()
