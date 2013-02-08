@@ -3,10 +3,13 @@ import string
 import doctest
 
 class ZCLCluster:
-    def __init__(self, cluster_xml):
-        self.name = cluster_xml.find('name').text
-        self.define = cluster_xml.find('define').text
-        self.code = int(cluster_xml.find('code').text, 0)
+    def __init__(self, cluster_xml, has_metadata=True):
+        if has_metadata:
+            self.name = cluster_xml.find('name').text
+            self.define = cluster_xml.find('define').text
+            self.code = int(cluster_xml.find('code').text, 0)
+        else:
+            self.code = 0
         self.add_commands(cluster_xml)
         self.add_attributes(cluster_xml)
 
@@ -102,6 +105,9 @@ class ZCL:
         for xml_file in xml_files:
             tree = xml.parse(xml_file)
             root = tree.getroot()
+            # probably don't need to iterate here because there should be only one global 'cluster'
+            for global_xml in root.iter('global'):
+                setattr(self, 'global_', ZCLCluster(global_xml, has_metadata=False))
             for cluster_xml in root.iter('cluster'):
                 setattr(self,
                         _attr_from_name(cluster_xml.find('name').text),
