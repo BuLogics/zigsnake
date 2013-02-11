@@ -95,13 +95,18 @@ class ZBController:
         print 'Device %s joined' % match.group(1)
         return int(match.group(1), 0)
 
-    def send_zcl_command(self, destination, cmd):
+    def send_zcl_command(self, destination, cmd, debug=False):
         payload = []
         for arg in cmd.args:
             payload += _list_from_arg(arg.type, arg.value)
-        self.write('raw 0x%04X {01 %02X %02X %s}' %
-                (cmd.cluster_code, self.sequence, cmd.code,
-                " ".join(["%02X" % x for x in payload])))
+        if debug:
+            sys.stdout.write('raw 0x%04X {01 %02X %02X %s}' %
+                    (cmd.cluster_code, self.sequence, cmd.code,
+                    " ".join(["%02X" % x for x in payload])))
+        else:
+            self.write('raw 0x%04X {01 %02X %02X %s}' %
+                    (cmd.cluster_code, self.sequence, cmd.code,
+                    " ".join(["%02X" % x for x in payload])))
         self.write('send 0x%04X 1 1' % destination)
         self.sequence = self.sequence + 1 % 0x100
         #TODO: wait for response
@@ -114,7 +119,7 @@ class ZBController:
                 (destination, 1, " ".join(["0x%04X" % x for x in payload])))
         self.sequence = self.sequence + 1 % 0x100
 
-    def bind_node(self, node_id, node_ieee_address, cluster_id):
+    def bind_node(self, node_id, node_ieee_address, cluster_id, timeout = 10):
         '''
         Binds a destination node to us.
         Expects node_id and cluster_id as integers, and node_ieee_address as
@@ -122,7 +127,15 @@ class ZBController:
         '''
         self.write('zdo bind %d 1 1 %d {%s} {}' % (
                 node_id, cluster_id, node_ieee_address))
-        #TODO: wait for response
+        # note that we're basically waiting for any ZDO command, which is a little liberal
+        # RX: ZDO, command 0x8021, status: 0x00
+        _, match, _ = self.conn.expect(
+                ["RX: ZDO, command 0x[0-9A-Za-z]{4}, status: 0x([0-9A-Za-z]{2})"], timeout=timeout)
+        if match is None:
+            raise AssertionError("TIMED OUT waiting for bind response")
+        if match.group(1) != '00':
+            raise AssertionError("Bind Request returned status %s" % match.group(1))
+
 
     def configure_reporting(self, destination, attribute, min_interval, max_interval, threshold):
         '''
@@ -137,7 +150,7 @@ class ZBController:
             min_interval, max_interval, _hex_string_from_list(threshold_value_list)))
         self.write('send 0x%04X 1 1' % destination)
 
-    def write_attribute(self, destination, attribute, value):
+    def write_attribute(self, destination, attribute, value, timeout = 10):
         '''
         Writes an attribute on a device. Attributes are instances of
         ZCLAttribute.
@@ -150,7 +163,11 @@ class ZBController:
                 (attribute.cluster_code, attribute.code, attribute.type_code,
                 " ".join(['%02X' % x for x in payload])))
         self.write('send 0x%04X 1 1' % destination)
-        #TODO: wait for response
+        #RX len 4, ep 01, clus 0x0020 (Unknown clus. [0x0020]) FC 18 seq EC cmd 04 payload[00 ]
+        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
+            'clus 0x%04X \([a-zA-Z0-9\.\[\]\(\) ]+\) .* cmd 04 payload\[([0-9A-Z ]*)\]' % attribute.cluster_code],
+            timeout=timeout)
+        #TODO: actually do something with the response
 
     def write_local_attribute(self, attribute, value):
         '''
@@ -191,17 +208,20 @@ class ZBController:
         attribute_type = zcl.get_type_string(attribute_type_code)
         return _pop_argument(attribute_type, payload)
 
+    #T183FCD64:RX len 5, ep 01, clus 0x0020 (Unknown clus. [0x0020]) FC 18 seq D3 cmd 0B payload[03 00 ]
     def expect_zcl_command(self, command, timeout=10):
         '''
         Waits for an incomming message and validates it against the given
         cluster ID, command ID, and arguments. Any arguments given as None
-        are ignored. Returns True for success or False for failure.
+        are ignored. Raises an AssertionError on mis-match or timeout.
         '''
         # read and discard any data already queued up in the buffer
         self.conn.read_eager()
-        _, match, _ = self.conn.expect(['RX len [0-9]+, ep [0-9A-Z]+, ' +
-            'clus 0x%04X \([a-zA-Z ]+\) .* cmd %02X payload\[([0-9A-Z ]*)\]'
-            % (command.cluster_code, command.code)], timeout=timeout)
+        # we're pretty loose about what we accept as the incoming command. This is
+        # mostly to more easily handle DefaultResponses, which are displayed
+        # with their cluster ID as whatever cluster they're responding to
+        _, match, _ = self.conn.expect(['RX .* cmd %02X payload\[([0-9A-Z ]*)\]'
+            % command.code], timeout=timeout)
         if match is None:
             raise AssertionError("TIMED OUT waiting for " + command.name)
         payload = [int(x, 16) for x in match.group(1).split()]
@@ -237,7 +257,7 @@ def _list_from_arg(type, value, strip_string_length=False):
     >>> _list_from_arg('OCTET_STRING', [6, 7, 8, 9])
     [4, 6, 7, 8, 9]
     '''
-    if type in ['ENUM8', 'INT8U']:
+    if type in ['ENUM8', 'INT8U', 'Status']:
         if value < 0 or value > 0xff:
             raise ValueError
         return [value]

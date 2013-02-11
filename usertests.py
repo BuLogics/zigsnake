@@ -5,6 +5,6 @@ class UserFacingTestCase(unittest.TestCase):
         response = ''
         while(response == ''):
             # we append a space if the user didn't
-            response = raw_input(prompt + (' ' if prompt[-1] != ' ' else ''))
+            response = raw_input('\n' + prompt + (' ' if prompt[-1] != ' ' else ''))
         if response[0] not in 'yY':
             raise AssertionError('Failed user confirmation')

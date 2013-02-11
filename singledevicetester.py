@@ -70,8 +70,8 @@ class SingleDeviceTester(ZBController):
             self.dut_node_id = ZBController.wait_for_join(self)
             self.disable_permit_join()
 
-    def send_zcl_command(self, zcl_command):
-        ZBController.send_zcl_command(self, self.dut_node_id, zcl_command)
+    def send_zcl_command(self, zcl_command, *args, **kwargs):
+        ZBController.send_zcl_command(self, self.dut_node_id, zcl_command, *args, **kwargs)
         time.sleep(3)
 
     def read_attribute(self, attribute):
